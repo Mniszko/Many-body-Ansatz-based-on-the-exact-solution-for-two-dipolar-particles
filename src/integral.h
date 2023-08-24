@@ -2,6 +2,7 @@
 #define INTEGRAL_H
 
 #include <array>
+#include <vector>
 
 class CompleteIntegral{
     private:
@@ -66,13 +67,18 @@ class CompleteIntegral{
         void print_result();
 
         double fastLaplacianWithHarmonicEnergy(unsigned int, unsigned int);//call only for diagonal elements! arguments are numbers of basis functions
+        double integrate_delta_dispersion();
         double integrate_over_delta(double);
         double integrate_over_dipole(double);
         
+        double integrate_delta_dispersion_helper_r(double, double, double, double, double, double);
+        double integrate_delta_dispersion_helper_r2(double, double);
 
         double fast_add_over_harmonic(unsigned int, unsigned int);
         double test_integral();
 };
 
+//this one should be declared somewhere else
+double calculate_full_dispersion(std::vector<std::array<int, 6>>, double*);
 
 #endif /* INTEGRAL_H */

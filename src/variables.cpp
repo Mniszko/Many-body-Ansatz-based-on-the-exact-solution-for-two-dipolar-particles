@@ -96,3 +96,76 @@ void write_to_csv(const std::string &filename,
     // Close the file
     file.close();
 }
+
+
+void write_vectors_to_csv(const std::vector<std::array<int, 6>>& vector_of_vectors, 
+                double* stdArray, 
+                size_t arraySize, 
+                const std::string& filename) {
+
+    // Check if sizes match; if not, something is wrong
+    if(vector_of_vectors.size() != arraySize) {
+        std::cerr << "Mismatch in sizes of vector_of_vectors and stdArray!" << std::endl;
+        return;
+    }
+
+    std::ofstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < vector_of_vectors.size(); ++i) {
+        for (int j = 0; j < 6; ++j) {
+            file << vector_of_vectors[i][j];
+            if (j != 5) { // Don't put a comma after the last value in the array
+                file << ",";
+            }
+        }
+        // After writing the contents of vector_of_vectors, write the corresponding value from stdArray
+        file << "," << stdArray[i];
+        file << "\n"; // New line after each row
+    }
+
+    file.close();
+}
+
+double* readLastColumn(const std::string& filename, unsigned int& size) {
+    std::ifstream file(filename);
+    
+    if (!file.is_open()) {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return nullptr;
+    }
+
+    std::string line;
+    
+    // Skip header
+    std::getline(file, line);
+
+    std::vector<double> values;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string token;
+        double lastValue = 0.0;
+
+        while (std::getline(iss, token, ',')) {
+            try {
+                lastValue = std::stod(token);
+            } catch (const std::invalid_argument&) {
+                continue; // handle invalid conversion, move to the next token
+            }
+        }
+        values.push_back(lastValue);
+    }
+
+    size = values.size();
+    double* result = new double[size];
+    
+    for (size_t i = 0; i < size; ++i) {
+        result[i] = values[i];
+    }
+
+    return result;
+}

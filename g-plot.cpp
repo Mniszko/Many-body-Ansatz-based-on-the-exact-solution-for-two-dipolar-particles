@@ -16,7 +16,7 @@
 
 const double pi = 3.14159265358979323846;
 
-double main_loop(int argc, char* argv[], double g, double g_dip, double length, int nmax, int umax, int mmax){
+double main_loop(int argc, char* argv[], double g, double g_dip, double length, int nmax, int umax, int mmax, bool WriteWaveFunction=false){
     double epsabs = 1e-8;
     double epsrel = 1e-6;
     size_t limit = 100;
@@ -148,33 +148,62 @@ double main_loop(int argc, char* argv[], double g, double g_dip, double length, 
         }
         
         Eigen::VectorXd eigenvalues = solver.eigenvalues().real();
-
-        //Finding the lowest eigenvalue
         double minEigenvalue = eigenvalues.minCoeff();
+        
+        if (WriteWaveFunction){
+            //Finding the lowest eigenvalue
+            int minIndex = 0;
+
+            for (int i = 0; i < eigenvalues.size(); ++i) {
+                if (eigenvalues[i] == minEigenvalue) {
+                    minIndex = i;
+                }
+            }
+            int size = main_matrix.rows();  // Assuming A is your matrix
+            double* stdArray = new double[size];
+
+
+            auto minEigenvector = solver.eigenvectors();
+            for (int i = 0; i < size; ++i) {
+                stdArray[i] = minEigenvector.col(minIndex).real()(i);
+            }
+            write_vectors_to_csv(vector_of_vectors, stdArray, number_of_functions, "./vector_outputs/lowest_wavefunction"+std::to_string(length)+".csv");
+            delete[] stdArray;
+        }
+
         return minEigenvalue;
     }
     return 0;
 }
 
-int length_loop(int argc, char* argv[], int nmax, int umax, int mmax){
+int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax){
     double g = 1.;
     double g_dip = 1.;
     double lengthmax = 10;
     const unsigned int numofsteps = 100;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
-    for (double length=1; length < lengthmax ; length+=lengthmax/numofsteps){
+
+    int nmin = 0;
+    int umin = 0;
+    int mmin = 0;
+    int n1 = 0, m1 = 0, u1 = 0, n2 = 0, m2 = 0, u2 = 0, n3 = 0, m3 = 0, u3 = 0, n4 = 0, m4 = 0, u4 = 0;
+    FlagParser flag_parser(argc, argv);
+    flag_parser.parse_flags();
+    std::vector<std::array<int, 6>> vector_of_vectors = *generateCombinations(nmin, umin, mmin, nmax, umax, mmax);
+    unsigned int number_of_functions = vector_of_vectors.size();
+    for (double length=0.01; length < lengthmax ; length+=lengthmax/numofsteps){
+        double* array = readLastColumn("./vector_outputs/lowest_wavefunction"+std::to_string(length)+".csv", number_of_functions);
+        
         auto start = std::chrono::high_resolution_clock::now();
-        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax);
+        double value = calculate_full_dispersion(vector_of_vectors, array);
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(end - start).count();
         std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << length*numofsteps/lengthmax << '/'<<numofsteps<< std::endl;
         yvalues.push_back(value);
         xvalues.push_back(length);
     }
-    write_to_csv("length_output.csv",xvalues,yvalues, nmax, umax, mmax);
-    return 0;
-
+    write_to_csv("dispersion_output.csv",xvalues,yvalues, nmax, umax, mmax);
     return 0;
 }
 
@@ -198,16 +227,58 @@ int delta_loop(int argc, char* argv[], int nmax, int umax, int mmax){
     return 0;
 }
 
+int length_loop(int argc, char* argv[], int nmax, int umax, int mmax){
+    double g = 1.;
+    double g_dip = 1.;
+    double lengthmax = 10;
+    const unsigned int numofsteps = 100;
+    std::vector<double> yvalues;
+    std::vector<double> xvalues;
+    for (double length=1; length < lengthmax ; length+=lengthmax/numofsteps){
+        auto start = std::chrono::high_resolution_clock::now();
+        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax);
+        auto end = std::chrono::high_resolution_clock::now();
+        double elapsed_seconds = std::chrono::duration<double>(end - start).count();
+        std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << length*numofsteps/lengthmax << '/'<<numofsteps<< std::endl;
+        yvalues.push_back(value);
+        xvalues.push_back(length);
+    }
+    write_to_csv("length_output.csv",xvalues,yvalues, nmax, umax, mmax);
+    return 0;
+}
+
 int dipole_loop(int argc, char* argv[], int nmax, int umax, int mmax){
-    std::cout << "NOT YET IMPLEMENTED" <<std::endl;
+    double g = 1.;
+    double g_dip = 1.;
+    double lengthmax = 10;
+    const unsigned int numofsteps = 100;
+    std::vector<double> yvalues;
+    std::vector<double> xvalues;
+    for (double length=0.01; length < lengthmax ; length+=lengthmax/numofsteps){
+        auto start = std::chrono::high_resolution_clock::now();
+        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax, true);
+        auto end = std::chrono::high_resolution_clock::now();
+        double elapsed_seconds = std::chrono::duration<double>(end - start).count();
+        std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << length*numofsteps/lengthmax << '/'<<numofsteps<< std::endl;
+        yvalues.push_back(value);
+        xvalues.push_back(length);
+    }
+    write_to_csv("length_output.csv",xvalues,yvalues, nmax, umax, mmax);
     return 0;
 }
 
 int main(int argc, char* argv[]){
+    /*
     int nmax = 2;
     int umax = 2;
     int mmax = 1;
-    delta_loop(argc, argv, nmax, umax, mmax);
-    length_loop(argc, argv, nmax, umax, mmax);
+    */
+    int nmax = 2;
+    int umax = 1;
+    int mmax = 1;
+    //delta_loop(argc, argv, nmax, umax, mmax);
+    //length_loop(argc, argv, nmax, umax, mmax);
+    //dipole_loop(argc, argv, nmax, umax, mmax);
+    dispersion_loop(argc, argv, nmax, umax, mmax);
     return 0;
 }

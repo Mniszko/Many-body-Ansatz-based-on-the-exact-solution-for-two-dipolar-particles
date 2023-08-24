@@ -27,6 +27,16 @@ def plot_length_output():
     plt.grid(True)
     plt.show()
 
+def plot_dispersion_output():
+    data = pd.read_csv("dispersion_output.csv",header=1)
+    
+    plt.plot(data['X'], data['Y'], marker='o',c='orangered')
+    plt.xlabel('$L$')
+    plt.ylabel('$E_0$')
+    plt.title('$E_0$ for $g=1$, Dirac delta interaction')
+    plt.grid(True)
+    plt.show()
+
 def plot_g_output():
     data = pd.read_csv("g_output.csv",header=1)
     
@@ -39,5 +49,6 @@ def plot_g_output():
 
 
 if __name__ == "__main__":
-    plot_length_output()
-    plot_g_output()
+    plot_dispersion_output()
+    #plot_length_output()
+    #plot_g_output()
