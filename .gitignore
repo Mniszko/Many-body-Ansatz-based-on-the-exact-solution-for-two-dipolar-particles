@@ -3,3 +3,6 @@ Eigen
 *.o
 g-plot
 *.csv
+*.png
+*.csv
+temp*

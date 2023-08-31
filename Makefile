@@ -6,10 +6,10 @@ CFLAGS = -lgsl -lgslcblas -std=c++17 -lboost_program_options
 
 # Targets and object files for g-plot and test
 G_PLOT_TARGET = g-plot
-G_PLOT_OBJS = g-plot.o integral.o flag_parser.o error_handler.o variables.o main_functions.o
+G_PLOT_OBJS = g-plot.o integral.o flag_parser.o variables.o main_functions.o
 
 TEST_TARGET = test
-TEST_OBJS = test.o integral.o flag_parser.o error_handler.o variables.o main_functions.o
+TEST_OBJS = test.o integral.o flag_parser.o variables.o main_functions.o
 
 all: $(G_PLOT_TARGET)
 
@@ -30,9 +30,6 @@ integral.o: ./src/integral.cpp ./src/integral.h
 
 flag_parser.o: ./src/flag_parser.cpp ./src/flag_parser.h
 	$(CC) $(CFLAGS) -c ./src/flag_parser.cpp
-
-error_handler.o: ./src/error_handler.cpp ./src/error_handler.h
-	$(CC) $(CFLAGS) -c ./src/error_handler.cpp
 
 variables.o: ./src/variables.cpp ./src/variables.h
 	$(CC) $(CFLAGS) -c ./src/variables.cpp
