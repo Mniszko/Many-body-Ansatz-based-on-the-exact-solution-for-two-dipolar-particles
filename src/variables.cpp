@@ -7,6 +7,8 @@
 #include <iostream>
 #include <boost/program_options.hpp>
 #include <stdexcept>
+#include <dirent.h>
+#include <unistd.h>
 
 
 void functions::write_to_file(std::string filename, const std::vector<std::string>& parameters, const std::vector<std::vector<double>>& values, std::string extrainfo) {
@@ -115,7 +117,7 @@ void write_vectors_to_csv(const std::vector<std::array<int, 6>>& vector_of_vecto
         std::cerr << "Failed to open file: " << filename << std::endl;
         return;
     }
-
+    file << "n1,u1,m1,n2,u2,m2,constant\n";
     for (size_t i = 0; i < vector_of_vectors.size(); ++i) {
         for (int j = 0; j < 6; ++j) {
             file << vector_of_vectors[i][j];
@@ -169,3 +171,28 @@ double* readLastColumn(const std::string& filename, unsigned int& size) {
 
     return result;
 }
+
+void deleteFilesWithPrefix() {
+    const std::string directory = "./vector_outputs/";
+    const std::string prefix = "lowest_wavefunction";
+    DIR* dir;
+    struct dirent* ent;
+    int numbOfFiles = 0;
+    if ((dir = opendir(directory.c_str())) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {
+            if (strncmp(ent->d_name, prefix.c_str(), prefix.size()) == 0) {
+                std::string filePath = directory + "/" + ent->d_name;
+                if (unlink(filePath.c_str()) == 0) {
+                    ++numbOfFiles;
+                } else {
+                    std::cerr << "Error deleting: " << filePath << std::endl;
+                }
+            }
+        }
+        closedir(dir);
+    } else {
+        std::cerr << "Could not open directory: " << directory << std::endl;
+    }
+    std::cout << "Deleted " << std::to_string(numbOfFiles) << " files" << std::endl;
+}
+

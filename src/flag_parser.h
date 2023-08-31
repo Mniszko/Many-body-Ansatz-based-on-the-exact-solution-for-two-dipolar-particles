@@ -1,5 +1,5 @@
-#ifndef Flag_parser
-#define Flag_parser
+#ifndef FLAG_PARSER
+#define FLAG_PARSER
 
 #include <vector>
 

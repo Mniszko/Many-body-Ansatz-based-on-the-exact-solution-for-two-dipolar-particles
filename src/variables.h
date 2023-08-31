@@ -60,5 +60,5 @@ void write_vectors_to_csv(const std::vector<std::array<int, 6>>& ,
                 size_t arraySize, 
                 const std::string& );
 double* readLastColumn(const std::string& , unsigned int& );
-    
+void deleteFilesWithPrefix();
 #endif

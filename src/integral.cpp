@@ -87,6 +87,10 @@ void CompleteIntegral::changeMultiIndex(int n, int u, int m, int changer){
 void CompleteIntegral::changeLimit(int limit){
     this->limit = limit;
 }
+double CompleteIntegral::radial_function(double r, int n, int u, int m){
+    double psi = std::exp(-h*r*r*0.5)*this->fast_power(r,m)*boost::math::hypergeometric_1F1(-u, m + 1, r*r * h);
+    return psi;
+}
 
 //czy to jest w ogóle potrzebne?
 /*
@@ -150,7 +154,7 @@ double CompleteIntegral::fast_add_over_harmonic(unsigned int number_of_first_fun
     int n2 = this->l2[0];
     int u2 = this->l2[1];
     int m2 = this->l2[2];
-    double result = (n1*n1+n2*n2)*4*pi*pi*this->rev_length*this->rev_length + 2*u1+2*u2+m1+m2+2;
+    double result = (n1*n1+n2*n2)*0.5*pi*pi*this->rev_length*this->rev_length + 2*u1+2*u2+m1+m2+2;
     return result;
 }
 
@@ -178,10 +182,16 @@ double CompleteIntegral::integrate_over_delta(double g_del){
     IntegrationWorkspace wsp(this->limit);
     auto inner = make_gsl_function( [&](double rho) {
                     // inside of a function
+                    /*
                     double psi1 = std::exp(-h*rho*rho*0.5)*this->fast_power(rho,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho*rho * h);
                     double psi2 = std::exp(-h*rho*rho*0.5)*this->fast_power(rho,m2)*boost::math::hypergeometric_1F1(-u2, m2 + 1, rho*rho * h);
                     double psi3 = std::exp(-h*rho*rho*0.5)*this->fast_power(rho,m3)*boost::math::hypergeometric_1F1(-u3, m3 + 1, rho*rho * h);
                     double psi4 = std::exp(-h*rho*rho*0.5)*this->fast_power(rho,m4)*boost::math::hypergeometric_1F1(-u4, m4 + 1, rho*rho * h);
+                    */
+                    double psi1 = radial_function(rho, n1, u1, m1);
+                    double psi2 = radial_function(rho, n2, u2, m2);
+                    double psi3 = radial_function(rho, n3, u3, m3);
+                    double psi4 = radial_function(rho, n4, u4, m4);
                     return psi1*psi2*psi3*psi4;
                 } );
     gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp,
@@ -208,9 +218,13 @@ double CompleteIntegral::dipole_integral_function(std::array<int,3> l1, std::arr
     double result, abserr, outer_result, outer_abserr, middle_result, middle_abserr, inner_result, inner_abserr;
 
     IntegrationWorkspace wsp1(this->limit);
+    IntegrationWorkspace wsp11(this->limit);
     IntegrationWorkspace wsp2(this->limit);
+    IntegrationWorkspace wsp22(this->limit);
     IntegrationWorkspace wsp3(this->limit);
+    IntegrationWorkspace wsp33(this->limit);
     IntegrationWorkspace wsp4(this->limit);
+    IntegrationWorkspace wsp44(this->limit);
 
     auto full= make_gsl_function([&](double z2){
         auto outer = make_gsl_function([&](double z1){
@@ -225,28 +239,42 @@ double CompleteIntegral::dipole_integral_function(std::array<int,3> l1, std::arr
                     double Z3 = std::cos(2*pi*this->rev_length*n3*z1);
                     double psi4 = std::exp(-h*rho2*rho2*0.5)*this->fast_power(rho2,m4)*boost::math::hypergeometric_1F1(-u4, m4 + 1, rho2*rho2 * h);
                     double Z4 = std::cos(2*pi*this->rev_length*n4*z2);
-                    //sqrt is a lot faster than pow
-                    double distance = sqrt((rho2-rho2)*(rho2-rho2) + (z2-z1)*(z2-z1));
-                    double dipole = ((rho2-rho2)*(rho2-rho2) - (z2-z1)*(z2-z1))/(distance*distance*distance*distance*distance);
+                    
+                    double distance = sqrt((rho2-rho1)*(rho2-rho1) + (z2-z1)*(z2-z1));
+                    double dipole = ((rho2-rho1)*(rho2-rho1) - (z2-z1)*(z2-z1))/(distance*distance*distance*distance*distance);
 
                     return psi1*psi2*psi3*psi4*dipole*Z1*Z2*Z3*Z4;
                 });
-                gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
+                //qags because we have singularity on 0
+                double epsilon = 1e-7;
+                double addon_result, addon_abserr;
+                gsl_integration_qags(inner, 0, epsilon, epsabs, epsrel, limit, wsp1,
                                         &inner_result, &inner_abserr);
-                return inner_result;
+                gsl_integration_qagiu(inner, epsilon, epsabs, epsrel, limit, wsp11, &addon_result, &addon_abserr);
+                return inner_result+addon_result;
             });
-            gsl_integration_qagiu(middle, 0, epsabs, epsrel, limit, wsp2,&middle_result, &middle_abserr);
-            return middle_result;
+            double epsilon = 1e-7;
+            double addon_result, addon_abserr;
+            gsl_integration_qags(middle, 0, epsilon, epsabs, epsrel, limit, wsp2,&middle_result, &middle_abserr);
+            gsl_integration_qagiu(middle, epsilon, epsabs, epsrel, limit, wsp11, &addon_result, &addon_abserr);
+            return middle_result+addon_result;
         });
+        double epsilon = 1e-7;
+        double addon_result, addon_abserr;
         int key=this->key;
         gsl_integration_qag(outer, 0, this->length, epsabs, epsrel, limit, key, wsp3, &outer_result, &outer_abserr);
-        return outer_result;
+            gsl_integration_qagiu(outer, epsilon, epsabs, epsrel, limit, wsp11, &addon_result, &addon_abserr);
+        return outer_result+addon_abserr;
     });
+    double epsilon = 1e-7;
+    double addon_result, addon_abserr;
     int key=this->key;
     gsl_integration_qag(full, 0, this->length, epsabs, epsrel, limit, key, wsp3, &result, &abserr);
+            gsl_integration_qagiu(full, epsilon, epsabs, epsrel, limit, wsp11, &addon_result, &addon_abserr);
 
-    return result;
+    return result+addon_abserr;
 }
+
 // 4-fold integral, the slowest one
 double CompleteIntegral::integrate_over_dipole(double g_dip){
     std::array<int,3> l1 = this->l1, l2 = this->l2, l3 = this->l3, l4 = this->l4;
@@ -291,8 +319,9 @@ double CompleteIntegral::integrate_over_dipole(double g_dip){
     return result*g_dip;
 }
 
-double CompleteIntegral::integrate_delta_dispersion_helper_r(double c1, double c2, double norm1, double norm2, double norm3, double norm4){
-    double result1, abserr1, result2, abserr2;
+double CompleteIntegral::integrate_delta_dispersion_helper_r(double c1, double c2, bool centerOfMass){
+    double result_inner, abserr_inner, result, abserr;
+    double epsabs=this->epsabs, epsrel=this->epsrel, limit=this->limit;
     auto l = this->l1;
     int n1 = l[0];
     int u1 = l[1];
@@ -309,145 +338,183 @@ double CompleteIntegral::integrate_delta_dispersion_helper_r(double c1, double c
     int n4 = l[0];
     int u4 = l[1];
     int m4 = l[2];
+
     if (c1<1e-10||c2<1e-10){ // there are nearly nonexisting coefficients that just bloat the calculations
         return 0;
     }
-    if ((m1!=m3 && m2!=m4)||(m2!=m3 && m1!=m4)){
+    //first two quantum numbers follow normalization rules, both longitudinal and transversal wavefunctions don't depend on radial coordinate
+    //due to how vectors are generated (see generateCombinations function in variables.cpp) we must only consider the case when eigenfunctions differ in following manner. The same holds in integrate_delta_dispersion_helper_r2
+    if (m1!=m3 || m2!=m4){
         return 0;
     }
-    if ((n1!=n3 && n2!=n4)||(n2!=n3 && n1!=n4)){
+    if (n1!=n3 || n2!=n4){
         return 0;
     }
     IntegrationWorkspace wsp1(this->limit);
     IntegrationWorkspace wsp2(this->limit);
 
-    if(u2==u4){
-        auto inner = make_gsl_function( [&](double rho1) {
-                        // inside of a function
-                        double psi1 = std::exp(-h*rho1*rho1*0.5)*this->fast_power(rho1,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho1*rho1 * h);
-                        double psi3 = std::exp(-h*rho1*rho1*0.5)*this->fast_power(rho1,m3)*boost::math::hypergeometric_1F1(-u3, m3 + 1, rho1*rho1 * h); 
-                        return c1*c2*psi1*psi3*rho1/2;
-                    } );
-        gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
-                                        &result1, &abserr1);
-    }
-    if(u1==u3){
-        auto inner = make_gsl_function( [&](double rho2) {
-                        // inside of a function
-                        double psi1 = std::exp(-h*rho2*rho2*0.5)*this->fast_power(rho2,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho2*rho2 * h);
-                        double psi3 = std::exp(-h*rho2*rho2*0.5)*this->fast_power(rho2,m3)*boost::math::hypergeometric_1F1(-u3, m3 + 1, rho2*rho2 * h); 
-                        return c1*c2*psi1*psi3*rho2/2;
-                    } );
-        gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
-                                        &result2, &abserr2); 
-    }
-    return result1/norm2/norm4+result2/norm1/norm2; //divided by norms for coherence
-}
+    // nested integral can be easily turned into 1D integral with bunch of if statements speeding up the code probably 2-fold, though it would be more cumbersome problemshooting-wise. So that I leave for future implementation
 
-double CompleteIntegral::integrate_delta_dispersion_helper_r2(double c1, double c2){
-    double result, abserr, result_inner, abserr_inner;
-    auto l = this->l1;
-    int n1 = l[0];
-    int u1 = l[1];
-    int m1 = l[2];
-    l = this->l2;
-    int n2 = l[0];
-    int u2 = l[1];
-    int m2 = l[2];
-    l = this->l3;
-    int n3 = l[0];
-    int u3 = l[1];
-    int m3 = l[2];
-    l = this->l4;
-    int n4 = l[0];
-    int u4 = l[1];
-    int m4 = l[2];
-    if (c1<1e-10||c2<1e-10){ // there are nearly nonexisting coefficients that just bloat the calculations
-        return 0;
+    double normsym = 0.5;
+    if (m1 == m2 && m2 == m3 && m3 == m4){
+        normsym = 0.25;
     }
-    if ((m1!=m3 && m2!=m4)||(m2!=m3 && m1!=m4)){
-        return 0;
-    }
-    if ((n1!=n3 && n2!=n4)||(n2!=n3 && n1!=n4)){
-        return 0;
-    }
-    IntegrationWorkspace wsp1(this->limit);
-    IntegrationWorkspace wsp2(this->limit);
 
     auto outer = make_gsl_function( [&](double rho2) {
         auto inner = make_gsl_function( [&](double rho1) {
                         // inside of a function
-                        double psi1 = std::exp(-h*rho1*rho1*0.5)*this->fast_power(rho1,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho1*rho1 * h);
-                        double psi2 = std::exp(-h*rho2*rho2*0.5)*this->fast_power(rho2,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho2*rho2 * h);
-                        double psi3 = std::exp(-h*rho1*rho1*0.5)*this->fast_power(rho1,m3)*boost::math::hypergeometric_1F1(-u3, m3 + 1, rho1*rho1 * h); 
-                        double psi4 = std::exp(-h*rho2*rho2*0.5)*this->fast_power(rho2,m1)*boost::math::hypergeometric_1F1(-u1, m1 + 1, rho2*rho2 * h);
-                        return c1*c2*psi1*psi2*psi3*psi4*(rho1*rho1+rho2*rho2+2*rho1*rho2)/2;
+                        double psi11 = this->radial_function(rho1, n1, u1, m1);
+                        double psi12 = this->radial_function(rho2, n1, u1, m1);
+
+                        double psi21 = this->radial_function(rho1, n2, u2, m2);
+                        double psi22 = this->radial_function(rho2, n2, u2, m2);
+
+                        double psi31 = this->radial_function(rho1, n3, u3, m3);
+                        double psi32 = this->radial_function(rho2, n3, u3, m3);
+
+                        double psi41 = this->radial_function(rho1, n4, u4, m4);
+                        double psi42 = this->radial_function(rho2, n4, u4, m4);
+
+                        double val1,val2,val3,val4;
+
+                        if(centerOfMass){
+                            val1 = c1*c2*psi11*psi22*psi31*psi42*(rho1+rho2)*0.5;
+                            val2 = c1*c2*psi12*psi21*psi32*psi41*(rho1+rho2)*0.5;
+                            val3 = c1*c2*psi11*psi22*psi32*psi41*(rho1+rho2)*0.5;
+                            val4 = c1*c2*psi12*psi21*psi31*psi42*(rho1+rho2)*0.5;
+                        } else{                        
+                            val1 = c1*c2*psi11*psi22*psi31*psi42*rho1;
+                            val2 = c1*c2*psi12*psi21*psi32*psi41*rho1;
+                            val3 = c1*c2*psi11*psi22*psi32*psi41*rho1;
+                            val4 = c1*c2*psi12*psi21*psi31*psi42*rho1;
+                        }
+
+                        double finval = 0;
+                        if(m1==m2 && m3==m4){
+                            finval += val1;
+                            finval += val2;
+                        }
+                        if(m1==m3 && m2==m4){
+                            finval += val3;
+                            finval += val4;
+                        }
+                        
+                        return finval;
+                        //return c1*c2*(psi11*psi22+psi12*psi21)*(psi31*psi42+psi31*psi42)*(rho1+rho2)*0.5;
                     } );
-        gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
-                                        &result_inner, &abserr_inner);
+        //gsl_integration_qags(inner, 0, 20, epsabs, epsrel, limit, wsp1, &result_inner, &abserr_inner);
+                    
+        gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp1, &result_inner, &abserr_inner);
+                    
+        //gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1, &result_inner, &abserr_inner);
+                                        
         return result_inner;
     });
-    gsl_integration_qagiu(outer, 0, epsabs, epsrel, limit, wsp1,
-                                    &result_inner, &abserr_inner);
-    return result; //divided by norms for coherence
+    //gsl_integration_qags(outer, 0, 20, epsabs, epsrel, limit, wsp2, &result, &abserr);
     
+    gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp2, &result, &abserr);
+    
+    //gsl_integration_qagiu(outer, 0, epsabs, epsrel, limit, wsp1, &result, &abserr);
+    
+
+    return result*normsym;
 }
 
-//this one should be in another file
-double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vectors, double* array){
-    int number_of_functions = vector_of_vectors.size();
-    double epsabs = 1e-5; //maybe making number if recursions higher would be a good idea
-    double epsrel = 1e-6;
-    size_t limit = 100;
-
-    CompleteIntegral integral(limit,epsabs,epsrel);
-
-    std::vector<std::array<double,2>> norms;
-    for (int i = 0; i<number_of_functions ; ++i){
-        std::array<int,6> l1l2 = vector_of_vectors.at(i);
-        int n1 = l1l2[0];
-        int u1 = l1l2[1];
-        int m1 = l1l2[2];
-        int n2 = l1l2[3];
-        int u2 = l1l2[4];
-        int m2 = l1l2[5];
-        //std::cout << n1<<' '<<u1<<' '<<m1<<" | "<<n2<<' '<<u1<<' '<<m1 << std::endl;
-        //calculating norms in bulk to make performance better (plans for future include finding exact equation that will make the code a bit faster)
-        double norm1 = integral.integrate_norm_external(n1, u1, m1);
-        double norm2 = integral.integrate_norm_external(n2, u2, m2);
-        norms.push_back({1/std::sqrt(norm1),1/std::sqrt(norm2)}); 
+double CompleteIntegral::integrate_delta_dispersion_helper_r2(double c1, double c2, bool centerOfMass){
+    double result, abserr, result_inner, abserr_inner;
+    double epsabs=this->epsabs, epsrel=this->epsrel, limit=this->limit;
+    auto l = this->l1;
+    int n1 = l[0];
+    int u1 = l[1];
+    int m1 = l[2];
+    l = this->l2;
+    int n2 = l[0];
+    int u2 = l[1];
+    int m2 = l[2];
+    l = this->l3;
+    int n3 = l[0];
+    int u3 = l[1];
+    int m3 = l[2];
+    l = this->l4;
+    int n4 = l[0];
+    int u4 = l[1];
+    int m4 = l[2];
+    if (c1<1e-10||c2<1e-10){ // there are nearly nonexisting coefficients that just bloat the calculations
+        return 0;
     }
+    //for explanation of following "if" statements implementation read integrate_delta_dispersion_helper_r
+    if (m1!=m3 || m2!=m4){
+        return 0;
+    }
+    if (n1!=n3 || n2!=n4){
+        return 0;
+    }
+    IntegrationWorkspace wsp1(this->limit);
+    IntegrationWorkspace wsp2(this->limit);
+
+
+    double normsym = 0.5;
+    if (m1 == m2 && m2 == m3 && m3 == m4){
+        normsym = 0.25;
+    }
+
+    auto outer = make_gsl_function( [&](double rho2) {
+        auto inner = make_gsl_function( [&](double rho1) {
+                        // inside of a function
+                        
+                        double psi11 = this->radial_function(rho1, n1, u1, m1);
+                        double psi12 = this->radial_function(rho2, n1, u1, m1);
+
+                        double psi21 = this->radial_function(rho1, n2, u2, m2);
+                        double psi22 = this->radial_function(rho2, n2, u2, m2);
+
+                        double psi31 = this->radial_function(rho1, n3, u3, m3);
+                        double psi32 = this->radial_function(rho2, n3, u3, m3);
+
+                        double psi41 = this->radial_function(rho1, n4, u4, m4);
+                        double psi42 = this->radial_function(rho2, n4, u4, m4);
+
+                        double val1, val2, val3, val4;
+
+                        if(centerOfMass){
+                            val1 = c1*c2*psi11*psi22*psi31*psi42*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
+                            val2 = c1*c2*psi12*psi21*psi32*psi41*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
+                            val3 = c1*c2*psi11*psi22*psi32*psi41*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
+                            val4 = c1*c2*psi12*psi21*psi31*psi42*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
+                        } else{
+                            val1 = c1*c2*psi11*psi22*psi31*psi42*(rho1*rho1);
+                            val2 = c1*c2*psi12*psi21*psi32*psi41*(rho1*rho1);
+                            val3 = c1*c2*psi11*psi22*psi32*psi41*(rho1*rho1);
+                            val4 = c1*c2*psi12*psi21*psi31*psi42*(rho1*rho1);
+                        }
+
+                        double finval = 0;
+                        if(m1==m2 && m3==m4){
+                            finval += val1;
+                            finval += val2;
+                        }
+                        if(m1==m3 && m2==m4){
+                            finval += val3;
+                            finval += val4;
+                        }
+                        return finval;
+                        //return c1*c2*(psi11*psi22+psi12*psi21)*(psi31*psi41+psi32*psi42)*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
+                    } );
+        //gsl_integration_qags(inner, 0, 20, epsabs, epsrel, limit, wsp1, &result_inner, &abserr_inner);
+                    
+        gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp1, &result_inner, &abserr_inner);
+                    
+        //gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1, &result_inner, &abserr_inner);
+                                        
+        return result_inner;
+    });
+    //gsl_integration_qags(outer, 0, 20, epsabs, epsrel, limit, wsp2, &result, &abserr);
     
-    Eigen::MatrixXd r_matrix = Eigen::MatrixXd::Zero(number_of_functions,number_of_functions);
-    Eigen::MatrixXd r2_matrix = Eigen::MatrixXd::Zero(number_of_functions,number_of_functions);
+    gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp2, &result, &abserr);
     
-    for(int i=0; i<number_of_functions; ++i){
-            for(int j=0; j<=i; ++j){
-
-                double result = 0;
-
-                std::array<int,6> l1l2 = vector_of_vectors.at(i);
-                std::array<int,6> l3l4 = vector_of_vectors.at(j);
-
-                double c1 = array[i];
-                double c2 = array[j];
-
-                double norm1 = norms.at(i)[0];
-                double norm2 = norms.at(i)[1];
-                double norm3 = norms.at(j)[0];
-                double norm4 = norms.at(j)[1];
-
-                integral.changeMultiIndex(l1l2[0], l1l2[1], l1l2[2], 1);
-                integral.changeMultiIndex(l1l2[3], l1l2[4], l1l2[5], 2);
-                integral.changeMultiIndex(l3l4[0], l3l4[1], l3l4[2], 3);
-                integral.changeMultiIndex(l3l4[3], l3l4[4], l3l4[5], 4);
-
-                r_matrix(i,j) = integral.integrate_delta_dispersion_helper_r(c1,c2,norm1,norm2,norm3,norm4);
-                r2_matrix(i,j) = integral.integrate_delta_dispersion_helper_r2(c1,c2);
-            }
-        }
-    double rsum = r_matrix.sum();
-    double r2sum = r2_matrix.sum();
-    double radial_dispersion = sqrt(rsum*rsum-r2sum);
-    return radial_dispersion;
+    //gsl_integration_qagiu(outer, 0, epsabs, epsrel, limit, wsp1, &result, &abserr);
+    
+    return result*normsym;
+    
 }
+

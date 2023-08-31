@@ -2,7 +2,6 @@
 #define INTEGRAL_H
 
 #include <array>
-#include <vector>
 
 class CompleteIntegral{
     private:
@@ -15,6 +14,7 @@ class CompleteIntegral{
         int key;
         static void check_if_valid_key(int k);
         static double fast_power(double,int);
+        double radial_function(double, int, int, int);
         double dipole_integral_function(std::array<int,3>, std::array<int,3>, std::array<int,3>, std::array<int,3>);
     public:
         CompleteIntegral(int limit, double epsabs, double epsrel){
@@ -31,7 +31,7 @@ class CompleteIntegral{
             this->norm2 = 0;
             this->length = 1;
             this->rev_length = 1/this->length;
-            this->key = 1;
+            this->key = 6;
             this->check_if_valid_key(this->key);
         }
         double get_rev_length(){
@@ -71,14 +71,13 @@ class CompleteIntegral{
         double integrate_over_delta(double);
         double integrate_over_dipole(double);
         
-        double integrate_delta_dispersion_helper_r(double, double, double, double, double, double);
-        double integrate_delta_dispersion_helper_r2(double, double);
+        double integrate_delta_dispersion_helper_r(double, double, bool centerOfMass=false);
+        double integrate_delta_dispersion_helper_r2(double, double, bool centerOfMass=false);
 
         double fast_add_over_harmonic(unsigned int, unsigned int);
         double test_integral();
 };
 
 //this one should be declared somewhere else
-double calculate_full_dispersion(std::vector<std::array<int, 6>>, double*);
 
 #endif /* INTEGRAL_H */

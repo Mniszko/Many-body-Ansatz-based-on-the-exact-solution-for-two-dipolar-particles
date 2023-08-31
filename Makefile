@@ -1,17 +1,26 @@
+
 # Compiler
 CC = g++
-
 # Compiler flags
 CFLAGS = -lgsl -lgslcblas -std=c++17 -lboost_program_options
 
-# Target executable
-TARGET = g-plot
+# Targets and object files for g-plot and test
+G_PLOT_TARGET = g-plot
+G_PLOT_OBJS = g-plot.o integral.o flag_parser.o error_handler.o variables.o main_functions.o
 
-# Object files
-OBJS = g-plot.o integral.o flag_parser.o error_handler.o variables.o
+TEST_TARGET = test
+TEST_OBJS = test.o integral.o flag_parser.o error_handler.o variables.o main_functions.o
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+all: $(G_PLOT_TARGET)
+
+$(G_PLOT_TARGET): $(G_PLOT_OBJS)
+	$(CC) $(CFLAGS) -o $(G_PLOT_TARGET) $(G_PLOT_OBJS)
+
+$(TEST_TARGET): $(TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(TEST_TARGET) $(TEST_OBJS)
+
+test.o: test.cpp ./src/integral.h
+	$(CC) $(CFLAGS) -c test.cpp
 
 g-plot.o: g-plot.cpp ./src/integral.h
 	$(CC) $(CFLAGS) -c g-plot.cpp
@@ -27,6 +36,9 @@ error_handler.o: ./src/error_handler.cpp ./src/error_handler.h
 
 variables.o: ./src/variables.cpp ./src/variables.h
 	$(CC) $(CFLAGS) -c ./src/variables.cpp
-	
+
+main_functions.o: ./src/main_functions.cpp ./src/main_functions.h
+	$(CC) $(CFLAGS) -c ./src/main_functions.cpp
+
 clean:
-	rm -f *.o $(TARGET)
+	rm -f *.o $(G_PLOT_TARGET) $(TEST_TARGET)
