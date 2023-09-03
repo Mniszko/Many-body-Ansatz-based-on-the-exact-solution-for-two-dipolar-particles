@@ -293,7 +293,7 @@ int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool c
     double g = 1.;
     double g_dip = 1.;
     double lengthmax = 20;
-    double length0 = 0.1;
+    double length0 = 0.01;
     const unsigned int numofsteps = 100;
     std::vector<double> yvalues;
     std::vector<double> xvalues;

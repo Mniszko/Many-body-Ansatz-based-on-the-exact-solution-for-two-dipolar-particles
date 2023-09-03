@@ -27,6 +27,7 @@ double fast_power(double a, int b){
     return result;
 }
 
+/*dispersion test*/
 int main(){
     int nmin=0;
     int umin=0;
@@ -41,29 +42,76 @@ int main(){
     double epsrel = 1e-6;
     size_t limit = 100;
 
-    double c1=1,c2=1;
+    char* argv[2];
+    double length = 1;
 
     CompleteIntegral integral(limit,epsabs,epsrel);
     std::vector<std::array<int,6>> combination = *generateCombinations(nmin,umin,mmin,nmax,umax,mmax);
     unsigned int number_of_functions = combination.size();
-    Eigen::MatrixXd changer(number_of_functions,number_of_functions);
+    main_loop(1, argv, 1, 1, length, nmax, umax, mmax, true);
+    double* array = readLastColumn("./vector_outputs/lowest_wavefunction"+std::to_string(length)+".csv", number_of_functions);
+    Eigen::MatrixXd changerr(number_of_functions,number_of_functions);
+    Eigen::MatrixXd changerr2(number_of_functions,number_of_functions);
     integral.change_length(1);
     for (int i=0 ; i < number_of_functions ; ++i){
         for (int j=0 ; j <= i ; ++j){
             std::array<int,6> l1l2 = combination.at(i);
             std::array<int,6> l3l4 = combination.at(j);
 
+            double c1=std::abs(array[i]);
+            double c2=std::abs(array[j]);
+
+            //double c1=array[i];
+            //double c2=array[j];
+
             integral.changeMultiIndex(l1l2[0], l1l2[1], l1l2[2], 1);
             integral.changeMultiIndex(l1l2[3], l1l2[4], l1l2[5], 2);
             integral.changeMultiIndex(l3l4[0], l3l4[1], l3l4[2], 3);
             integral.changeMultiIndex(l3l4[3], l3l4[4], l3l4[5], 4);
-            double element = integral.fast_add_over_harmonic(i,j);
-            element += integral.integrate_over_delta(1);
-            changer(i,j) = element;
-            changer(j,i) = element;
+
+            integral.change_length(length);
+
+
+            if (c1<1e-8||c2<1e-8){ // there are nearly nonexisting coefficients that just bloat the calculations
+                changerr(i,j) = 0;
+                changerr2(j,i) = 0;
+                changerr(j,i) = 0;
+                changerr2(i,j) = 0;
+            }
+
+            double r1_val = integral.integrate_r1();
+            double r1_squared_val = integral.integrate_r1_squared();
+            double r1r2_val = integral.integrate_r1r2();
+
+            r1_val = std::abs(r1_val);
+            r1_squared_val = std::abs(r1_squared_val);
+            r1r2_val = std::abs(r1r2_val);
+
+            //explicit to be understandable
+            // symnorm equals to 1/2 or 1/sqrt(2)
+            double r_elem = c1*c2*(r1_val+r1_val)*0.5;
+            //r_elem = c1*c2*r1_val;
+            //double r_squared_elem = c1*c2*(r1_squared_val+r1_squared_val+2*r1r2_val)*0.25*norm1*norm2*norm3*norm4;
+            double r_squared_elem = c1*c2*(2*r1_squared_val+2*r1r2_val)*0.25;
+            //r_squared_elem=c1*c2*r1_squared_val;
+            if (i==0 && j==0){
+                double fasttest = integral.temp_fasttest();
+                std::cout << c1 << ' ' << c2 << std::endl;
+                std::cout << "fsttype: " << fasttest << std::endl;
+                std::cout << "squared: " << r1_squared_val << std::endl;
+                std::cout << "single: " << r1_val << std::endl;
+                std::cout << l1l2[0] << l1l2[1] << l1l2[2] << std::endl;
+                std::cout << l1l2[3] << l1l2[4] << l1l2[5] << std::endl;
+                std::cout << l3l4[0] << l3l4[1] << l3l4[2] << std::endl;
+                std::cout << l3l4[3] << l3l4[4] << l3l4[5] << std::endl;
+            }
+            changerr(i,j) = r_elem;
+            changerr2(j,i) = r_squared_elem;
+            changerr(j,i) = r_elem;
+            changerr2(i,j) = r_squared_elem;
         }
     }
-
+    Eigen::MatrixXd changer =changerr;
 
     std::ofstream file("./testy/sample_matrix.csv");
     if (file.is_open()) {
@@ -79,13 +127,35 @@ int main(){
         std::cerr << "Failed to open the file: " << "./testy/sample_matrix.csv" << std::endl;
     }
 
-    for (int i=0 ; i < number_of_functions ; ++i){
-        std::cout << combination.at(i)[0] << combination.at(i)[1] << combination.at(i)[2] << combination.at(i)[3] << combination.at(i)[4] << combination.at(i)[5] << std::endl;
+    file.close();
+
+    changer =changerr2;
+
+    file.open("./testy/sample_matrix2.csv");
+    if (file.is_open()) {
+        for (int row = 0; row < changer.rows(); ++row) {
+            for (int col = 0; col < changer.cols(); ++col) {
+                file << changer(row, col);
+                if (col + 1 < changer.cols())
+                    file << ", ";  // Add comma for all but last element
+            }
+            file << "\n";  // Newline for next row
+        }
+    } else {
+        std::cerr << "Failed to open the file: " << "./testy/sample_matrix.csv" << std::endl;
     }
-    std::cout << changer;
+
+    double rsum = changerr.sum();
+    double r2sum = changerr2.sum();
+
+    //rsum=r_matrix(0,0);
+    //r2sum = r2_matrix(0,0);
+    std::cout << "r2sum = " <<r2sum << std::endl;
+    std::cout << "rsum = " << rsum << std::endl;
+    double radial_dispersion = sqrt(r2sum-rsum*rsum);
+    std::cout << "dyspersja = " << radial_dispersion << std::endl;
     return 1;
 }
-
 /*
 int main(){
     std::vector<std::array<double,2>> norms;

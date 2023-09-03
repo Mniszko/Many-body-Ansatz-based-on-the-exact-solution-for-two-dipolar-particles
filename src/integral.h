@@ -14,6 +14,16 @@ class CompleteIntegral{
         int key;
         static void check_if_valid_key(int k);
         static double fast_power(double,int);
+        /*kronecker delta for two integers*/
+        static double delta(int int1,int int2){
+            if (int1==int2){return 1.;}
+            else{return 0.;}
+        }
+        /*kronecker delta for two integer triplets (first 3 integers and last 3 integers two triplets)*/
+        static double delta(int int11, int int12, int int13, int int21, int int22, int int23){
+            if (int11==int21 && int12==int22 && int13==int23){return 1.;}
+            else{return 0.;}
+        }
         double radial_function(double, int, int, int);
         double dipole_integral_function(std::array<int,3>, std::array<int,3>, std::array<int,3>, std::array<int,3>);
     public:
@@ -73,6 +83,14 @@ class CompleteIntegral{
         
         double integrate_delta_dispersion_helper_r(double, double, bool centerOfMass=false);
         double integrate_delta_dispersion_helper_r2(double, double, bool centerOfMass=false);
+
+        //testint env
+        //this time c1 and c2 will be added externally
+        double integrate_r1r2();
+        double integrate_r1();
+        double integrate_double_observable();
+        double integrate_r1_squared();
+        double temp_fasttest();
 
         double fast_add_over_harmonic(unsigned int, unsigned int);
         double test_integral();
