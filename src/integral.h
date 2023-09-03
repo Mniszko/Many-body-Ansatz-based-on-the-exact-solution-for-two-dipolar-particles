@@ -80,17 +80,13 @@ class CompleteIntegral{
         double integrate_delta_dispersion();
         double integrate_over_delta(double);
         double integrate_over_dipole(double);
-        
-        double integrate_delta_dispersion_helper_r(double, double, bool centerOfMass=false);
-        double integrate_delta_dispersion_helper_r2(double, double, bool centerOfMass=false);
 
         //testint env
         //this time c1 and c2 will be added externally
-        double integrate_r1r2();
-        double integrate_r1();
-        double integrate_double_observable();
-        double integrate_r1_squared();
-        double temp_fasttest();
+        double integrate_r1r2(double, double, double, double);
+        double integrate_r1(double, double, double, double);
+        double integrate_double_observable(double, double, double, double);//not yet written, although it should be fairly easy
+        double integrate_r1_squared(double, double, double, double);
 
         double fast_add_over_harmonic(unsigned int, unsigned int);
         double test_integral();

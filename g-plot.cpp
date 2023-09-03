@@ -15,8 +15,8 @@ int main(int argc, char* argv[]){
     int umax = 2;
     int mmax = 1;
     */
-    int nmax = 2;
-    int umax = 2;
+    int nmax = 1;
+    int umax = 1;
     int mmax = 1;
     //delta_loop(argc, argv, nmax, umax, mmax);
     //length_loop(argc, argv, nmax, umax, mmax);

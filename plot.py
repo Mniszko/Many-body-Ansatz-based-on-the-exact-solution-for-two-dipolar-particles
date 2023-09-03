@@ -30,8 +30,8 @@ def plot_length_output():
     plt.show()
 
 def plot_dispersion_output():
-    #data = pd.read_csv("dispersion_outputCOM.csv",header=1)
-    #plt.plot(data['X'], data['Y'], marker='o',c='orangered',label="center of mass dispersion")
+    data = pd.read_csv("dispersion_outputCOM.csv",header=1)
+    plt.plot(data['X'], data['Y'], marker='o',c='orangered',label="center of mass dispersion")
 
     data = pd.read_csv("dispersion_outputCOG.csv",header=1)
     plt.plot(data['X'], data['Y'], marker='o',c='orchid',label="single particle dispersion")
@@ -46,14 +46,14 @@ def plot_dispersion_output():
     
     major_tick_spacingx = max(data['X'])/5
     minor_tick_spacingx = major_tick_spacingx / 6
-    """
+    
     ax = plt.gca()
     ax.xaxis.set_major_locator(ticker.MultipleLocator(major_tick_spacingx))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(minor_tick_spacingx))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(major_tick_spacingy))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(minor_tick_spacingy))
     ax.grid(which='minor', linestyle='--', linewidth=0.5)
-    """
+    
     plt.legend()
     plt.title('Dispersion of lowest energy eigenfunction for $g=1$, Dirac delta interaction')
     plt.grid(True, which='both')  # This will enable grid for both major and minor ticks

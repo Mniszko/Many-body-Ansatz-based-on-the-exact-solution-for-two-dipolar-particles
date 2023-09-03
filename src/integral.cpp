@@ -343,222 +343,7 @@ double CompleteIntegral::integrate_over_dipole(double g_dip) {
   return result * g_dip;
 }
 
-double
-CompleteIntegral::integrate_delta_dispersion_helper_r(double c1, double c2,
-                                                      bool centerOfMass) {
-  double result_inner, abserr_inner, result, abserr;
-  double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
-  auto l = this->l1;
-  int n1 = l[0];
-  int u1 = l[1];
-  int m1 = l[2];
-  l = this->l2;
-  int n2 = l[0];
-  int u2 = l[1];
-  int m2 = l[2];
-  l = this->l3;
-  int n3 = l[0];
-  int u3 = l[1];
-  int m3 = l[2];
-  l = this->l4;
-  int n4 = l[0];
-  int u4 = l[1];
-  int m4 = l[2];
-
-  if (c1 < 1e-10 || c2 < 1e-10) { // there are nearly nonexisting coefficients
-                                  // that just bloat the calculations
-    return 0;
-  }
-
-  IntegrationWorkspace wsp1(this->limit);
-  IntegrationWorkspace wsp2(this->limit);
-
-  // nested integral can be easily turned into 1D integral with bunch of if
-  // statements speeding up the code probably 2-fold, though it would be more
-  // cumbersome problemshooting-wise. So that I leave for future implementation
-
-  double normsym = 0.5;
-  if (m1 == m2 && m2 == m3 && m3 == m4 && n1 == n2 && n2 == n3 && n3 == n4) {
-    normsym = 0.25;
-  }
-
-  auto outer = make_gsl_function([&](double rho2) {
-    auto inner = make_gsl_function([&](double rho1) {
-      // inside of a function
-      double psi11 = this->radial_function(rho1, n1, u1, m1);
-      double psi12 = this->radial_function(rho2, n1, u1, m1);
-
-      double psi21 = this->radial_function(rho1, n2, u2, m2);
-      double psi22 = this->radial_function(rho2, n2, u2, m2);
-
-      double psi31 = this->radial_function(rho1, n3, u3, m3);
-      double psi32 = this->radial_function(rho2, n3, u3, m3);
-
-      double psi41 = this->radial_function(rho1, n4, u4, m4);
-      double psi42 = this->radial_function(rho2, n4, u4, m4);
-
-      double val1, val2, val3, val4;
-
-      if (centerOfMass) {
-        val1 = c1 * c2 * psi11 * psi22 * psi31 * psi42 * (rho1 + rho2) * 0.5;
-        val2 = c1 * c2 * psi12 * psi21 * psi32 * psi41 * (rho1 + rho2) * 0.5;
-        val3 = c1 * c2 * psi11 * psi22 * psi32 * psi41 * (rho1 + rho2) * 0.5;
-        val4 = c1 * c2 * psi12 * psi21 * psi31 * psi42 * (rho1 + rho2) * 0.5;
-      } else {
-        val1 = c1 * c2 * psi11 * psi22 * psi31 * psi42 * rho1;
-        val2 = c1 * c2 * psi12 * psi21 * psi32 * psi41 * rho1;
-        val3 = c1 * c2 * psi11 * psi22 * psi32 * psi41 * rho1;
-        val4 = c1 * c2 * psi12 * psi21 * psi31 * psi42 * rho1;
-      }
-
-      double finval = 0;
-
-      // these conditions are due to completeness relation
-      if (m1 == m4 && m2 == m3 && n1 == n4 && n2 == n3) {
-        finval += val3;
-        finval += val4;
-      }
-
-      if (m1 == m3 && m2 == m4 && n1 == n3 && n2 == n4) {
-        finval += val1;
-        finval += val2;
-      }
-
-      return finval;
-      // return
-      // c1*c2*(psi11*psi22+psi12*psi21)*(psi31*psi42+psi31*psi42)*(rho1+rho2)*0.5;
-    });
-    // gsl_integration_qags(inner, 0, 20, epsabs, epsrel, limit, wsp1,
-    // &result_inner, &abserr_inner);
-
-    gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp1,
-                        &result_inner, &abserr_inner);
-
-    // gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
-    // &result_inner, &abserr_inner);
-
-    return result_inner;
-  });
-  // gsl_integration_qags(outer, 0, 20, epsabs, epsrel, limit, wsp2, &result,
-  // &abserr);
-
-  gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp2,
-                      &result, &abserr);
-
-  // gsl_integration_qagiu(outer, 0, epsabs, epsrel, limit, wsp1, &result,
-  // &abserr);
-
-  return result * normsym;
-}
-
-double
-CompleteIntegral::integrate_delta_dispersion_helper_r2(double c1, double c2,
-                                                       bool centerOfMass) {
-  double result, abserr, result_inner, abserr_inner;
-  double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
-  auto l = this->l1;
-  int n1 = l[0];
-  int u1 = l[1];
-  int m1 = l[2];
-  l = this->l2;
-  int n2 = l[0];
-  int u2 = l[1];
-  int m2 = l[2];
-  l = this->l3;
-  int n3 = l[0];
-  int u3 = l[1];
-  int m3 = l[2];
-  l = this->l4;
-  int n4 = l[0];
-  int u4 = l[1];
-  int m4 = l[2];
-  if (c1 < 1e-10 || c2 < 1e-10) { // there are nearly nonexisting coefficients
-                                  // that just bloat the calculations
-    return 0;
-  }
-
-  IntegrationWorkspace wsp1(this->limit);
-  IntegrationWorkspace wsp2(this->limit);
-
-  double normsym = 0.5;
-  if (m1 == m2 && m2 == m3 && m3 == m4 && n1 == n2 && n2 == n3 && n3 == n4) {
-    normsym = 0.25;
-  }
-
-  auto outer = make_gsl_function([&](double rho2) {
-    auto inner = make_gsl_function([&](double rho1) {
-      // inside of a function
-
-      double psi11 = this->radial_function(rho1, n1, u1, m1);
-      double psi12 = this->radial_function(rho2, n1, u1, m1);
-
-      double psi21 = this->radial_function(rho1, n2, u2, m2);
-      double psi22 = this->radial_function(rho2, n2, u2, m2);
-
-      double psi31 = this->radial_function(rho1, n3, u3, m3);
-      double psi32 = this->radial_function(rho2, n3, u3, m3);
-
-      double psi41 = this->radial_function(rho1, n4, u4, m4);
-      double psi42 = this->radial_function(rho2, n4, u4, m4);
-
-      double val1, val2, val3, val4;
-
-      if (centerOfMass) {
-        val1 = c1 * c2 * psi11 * psi22 * psi31 * psi42 *
-               (rho1 * rho1 + rho2 * rho2 + 2 * rho1 * rho2) * 0.25;
-        val2 = c1 * c2 * psi12 * psi21 * psi32 * psi41 *
-               (rho1 * rho1 + rho2 * rho2 + 2 * rho1 * rho2) * 0.25;
-        val3 = c1 * c2 * psi11 * psi22 * psi32 * psi41 *
-               (rho1 * rho1 + rho2 * rho2 + 2 * rho1 * rho2) * 0.25;
-        val4 = c1 * c2 * psi12 * psi21 * psi31 * psi42 *
-               (rho1 * rho1 + rho2 * rho2 + 2 * rho1 * rho2) * 0.25;
-      } else {
-        val1 = c1 * c2 * psi11 * psi22 * psi31 * psi42 * (rho1 * rho1);
-        val2 = c1 * c2 * psi12 * psi21 * psi32 * psi41 * (rho1 * rho1);
-        val3 = c1 * c2 * psi11 * psi22 * psi32 * psi41 * (rho1 * rho1);
-        val4 = c1 * c2 * psi12 * psi21 * psi31 * psi42 * (rho1 * rho1);
-      }
-
-      double finval = 0;
-
-      // these conditions are due to completeness relation
-      if (m1 == m4 && m2 == m3 && n1 == n4 && n2 == n3) {
-        finval += val3;
-        finval += val4;
-      }
-
-      if (m1 == m3 && m2 == m4 && n1 == n3 && n2 == n4) {
-        finval += val1;
-        finval += val2;
-      }
-      return finval;
-      // return
-      // c1*c2*(psi11*psi22+psi12*psi21)*(psi31*psi41+psi32*psi42)*(rho1*rho1+rho2*rho2+2*rho1*rho2)*0.25;
-    });
-    // gsl_integration_qags(inner, 0, 20, epsabs, epsrel, limit, wsp1,
-    // &result_inner, &abserr_inner);
-
-    gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp1,
-                        &result_inner, &abserr_inner);
-
-    // gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp1,
-    // &result_inner, &abserr_inner);
-
-    return result_inner;
-  });
-  // gsl_integration_qags(outer, 0, 20, epsabs, epsrel, limit, wsp2, &result,
-  // &abserr);
-
-  gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp2,
-                      &result, &abserr);
-
-  // gsl_integration_qagiu(outer, 0, epsabs, epsrel, limit, wsp1, &result,
-  // &abserr);
-
-  return result * normsym;
-}
-
-double CompleteIntegral::integrate_r1() {
+double CompleteIntegral::integrate_r1(double normi, double normj, double normk, double norml) {
   double result, abserr;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
@@ -579,10 +364,10 @@ double CompleteIntegral::integrate_r1() {
   int ml = l[2];
   IntegrationWorkspace wsp1(this->limit);
 
-  double normi = 1 / std::sqrt(this->integrate_norm_external(ni, ui, mi));
-  double normj = 1 / std::sqrt(this->integrate_norm_external(nj, uj, mj));
-  double normk = 1 / std::sqrt(this->integrate_norm_external(nk, uk, mk));
-  double norml = 1 / std::sqrt(this->integrate_norm_external(nl, ul, ml));
+  //normi = 1 / std::sqrt(this->integrate_norm_external(ni, ui, mi));
+  //normj = 1 / std::sqrt(this->integrate_norm_external(nj, uj, mj));
+  //normk = 1 / std::sqrt(this->integrate_norm_external(nk, uk, mk));
+  //norml = 1 / std::sqrt(this->integrate_norm_external(nl, ul, ml));
 
   double deljl = this->delta(nj, uj, mj, nl, ul, ml);
   double deljk = this->delta(nj, uj, mj, nk, uk, mk);
@@ -633,7 +418,7 @@ double CompleteIntegral::integrate_r1() {
   return result * Nsymij*Nsymkl;
 }
 
-double CompleteIntegral::integrate_r1_squared() {
+double CompleteIntegral::integrate_r1_squared(double, double, double, double) {
   double result, abserr;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
@@ -708,7 +493,7 @@ double CompleteIntegral::integrate_r1_squared() {
                       &result, &abserr);
   return result * Nsymij*Nsymkl;
 }
-double CompleteIntegral::integrate_r1r2() {
+double CompleteIntegral::integrate_r1r2(double, double, double, double) {
   double result, abserr, result_inner, abserr_inner;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
@@ -790,8 +575,8 @@ double CompleteIntegral::integrate_r1r2() {
   return result*Nsymij*Nsymkl;
 }
 
-double CompleteIntegral::temp_fasttest() {
-  double result, abserr, result2, abserr2, result3, abserr3, result_inner, abserr_inner;
+double CompleteIntegral::integrate_double_observable(double, double, double, double) {
+  double result, abserr, result_inner, abserr_inner;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
   int ni = l[0];
@@ -809,58 +594,65 @@ double CompleteIntegral::temp_fasttest() {
   int nl = l[0];
   int ul = l[1];
   int ml = l[2];
-  double normj = 1/sqrt(this->integrate_norm_external(nj, uj, mj));
-  double normk = 1/sqrt(this->integrate_norm_external(nk, uk, mk));
-
   IntegrationWorkspace wsp1(this->limit);
-  auto integrand = make_gsl_function([&](double rho) {
-    // inside of a function
-    double Rj = this->radial_function(rho, nj, uj, mj)*normj;
-
-    double finval = Rj * Rj * rho;
-
-    return finval;
-  });
-  gsl_integration_qag(integrand, 0, 20, epsabs, epsrel, limit, this->key, wsp1,
-                      &result, &abserr);
-
-  IntegrationWorkspace wsp11(this->limit);
-  auto integrand1 = make_gsl_function([&](double rho) {
-    // inside of a function
-    double Rk = this->radial_function(rho, nk, uk, mk)*normk;
-
-    double finval = Rk * Rk * rho;
-
-    return finval;
-  });
-  gsl_integration_qag(integrand1, 0, 20, epsabs, epsrel, limit, this->key, wsp11,
-                      &result3, &abserr3);
-
   IntegrationWorkspace wsp2(this->limit);
-  IntegrationWorkspace wsp3(this->limit);
 
-    auto outer = make_gsl_function([&](double rho2) {
+  double normi = 1 / std::sqrt(this->integrate_norm_external(ni, ui, mi));
+  double normj = 1 / std::sqrt(this->integrate_norm_external(nj, uj, mj));
+  double normk = 1 / std::sqrt(this->integrate_norm_external(nk, uk, mk));
+  double norml = 1 / std::sqrt(this->integrate_norm_external(nl, ul, ml));
+
+  double delNik = this->delta(ni, nk);
+  double delNil = this->delta(ni, nl);
+  double delNjk = this->delta(nj, nk);
+  double delNjl = this->delta(nj, nl);
+
+  double delMik = this->delta(mi, mk);
+  double delMil = this->delta(mi, ml);
+  double delMjk = this->delta(mj, mk);
+  double delMjl = this->delta(mj, ml);
+
+  double Nsymij = sqrt(0.5);
+  double Nsymkl = sqrt(0.5);
+  if (this->delta(ni,ui,mi,nj,uj,mj)==1){
+    Nsymij = 0.5;
+  }
+  if (this->delta(nl,ul,ml,nk,uk,mk)==1){
+    Nsymkl = 0.5;
+  }
+
+  auto outer = make_gsl_function([&](double rho2) {
     auto inner = make_gsl_function([&](double rho1) {
       // inside of a function
 
-      double Ri1 = this->radial_function(rho1, ni, ui, mi);
-      double Rj1 = this->radial_function(rho1, nj, uj, mj)*normj;
-      double Rk1 = this->radial_function(rho1, nk, uk, mk)*normk;
-      double Rl1 = this->radial_function(rho1, nl, ul, ml);
+      double Ri1 = this->radial_function(rho1, ni, ui, mi) * normi;
+      double Rj1 = this->radial_function(rho1, nj, uj, mj) * normj;
+      double Rk1 = this->radial_function(rho1, nk, uk, mk) * normk;
+      double Rl1 = this->radial_function(rho1, nl, ul, ml) * norml;
 
-      double Ri2 = this->radial_function(rho2, ni, ui, mi);
-      double Rj2 = this->radial_function(rho2, nj, uj, mj)*normj;
-      double Rk2 = this->radial_function(rho2, nk, uk, mk)*normk;
-      double Rl2 = this->radial_function(rho2, nl, ul, ml);
+      double Ri2 = this->radial_function(rho2, ni, ui, mi) * normi;
+      double Rj2 = this->radial_function(rho2, nj, uj, mj) * normj;
+      double Rk2 = this->radial_function(rho2, nk, uk, mk) * normk;
+      double Rl2 = this->radial_function(rho2, nl, ul, ml) * norml;
 
-      double finval = Rj1*Rj1*rho1*Rk2*Rk2*rho2;
+      // trzeba pamiętać o przemnożeniu wyniku przez 2
+      double elem1 = delNik * delNjl * delMik * delMjl * Ri1 * Rk1 * Rj2 * Rl2 *
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+      double elem2 = delNil * delNjk * delMil * delMjk * Ri1 * Rl1 * Rj2 * Rk2 *
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+      double elem3 = delNjk * delNil * delMjk * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+      double elem4 = delNjl * delNik * delMjl * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+
+      double finval = elem1 + elem2 + elem3 + elem4;
       return finval;
     });
-    gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp2,
+    gsl_integration_qag(inner, 0, 20, epsabs, epsrel, limit, this->key, wsp1,
                         &result_inner, &abserr_inner);
     return result_inner;
   });
-  gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp3,
-                      &result2, &abserr2);
-  return result2-result*result3;
+  gsl_integration_qag(outer, 0, 20, epsabs, epsrel, limit, this->key, wsp2,
+                      &result, &abserr);
+  return result*Nsymij*Nsymkl;
 }

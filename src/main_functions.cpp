@@ -204,6 +204,7 @@ double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vecto
 
     CompleteIntegral integral(limit,epsabs,epsrel);
 
+    //norm implementation should be good, but results should be checked with testfile code
     std::vector<std::array<double,2>> norms;
     for (int i = 0; i<number_of_functions ; ++i){
         std::array<int,6> l1l2 = vector_of_vectors.at(i);
@@ -213,26 +214,25 @@ double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vecto
         int n2 = l1l2[3];
         int u2 = l1l2[4];
         int m2 = l1l2[5];
-        //std::cout << n1<<' '<<u1<<' '<<m1<<" | "<<n2<<' '<<u1<<' '<<m1 << std::endl;
-        //calculating norms in bulk to make performance better (plans for future include finding exact equation that will make the code a bit faster)
         double norm1 = integral.integrate_norm_external(n1, u1, m1);
         double norm2 = integral.integrate_norm_external(n2, u2, m2);
         norms.push_back({1/std::sqrt(norm1),1/std::sqrt(norm2)}); 
     }
-    
+
     Eigen::MatrixXd r_matrix = Eigen::MatrixXd::Zero(number_of_functions,number_of_functions);
     Eigen::MatrixXd r2_matrix = Eigen::MatrixXd::Zero(number_of_functions,number_of_functions);
     for(int i=0; i<number_of_functions; ++i){
-            for(int j=0; j<number_of_functions; ++j){
+        for (int j=0 ; j <= i ; ++j){
 
                 double result = 0;
 
                 std::array<int,6> l1l2 = vector_of_vectors.at(i);
                 std::array<int,6> l3l4 = vector_of_vectors.at(j);
 
-                double c1 = std::abs(array[i]);
-                double c2 = std::abs(array[j]);
+                double c1 = array[i];
+                double c2 = array[j];
 
+                //ensure that this code is correct
                 double norm1 = norms.at(i)[0];
                 double norm2 = norms.at(i)[1];
                 double norm3 = norms.at(j)[0];
@@ -242,40 +242,31 @@ double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vecto
                 integral.changeMultiIndex(l1l2[3], l1l2[4], l1l2[5], 2);
                 integral.changeMultiIndex(l3l4[0], l3l4[1], l3l4[2], 3);
                 integral.changeMultiIndex(l3l4[3], l3l4[4], l3l4[5], 4);
-                //if we are integrating over only one-particle coordinate the matrix of components becomes diagonal - otherwise its rather improbable
-                if(i==j && !centerOfMass){
-                    r_matrix(i,j) = integral.integrate_delta_dispersion_helper_r(c1,c2, centerOfMass)*norm1*norm2*norm3*norm4;//definition of norm inside this function validates this form
-                    r_matrix(j,i) = r_matrix(i,j);
-                    r2_matrix(i,j) = integral.integrate_delta_dispersion_helper_r2(c1,c2, centerOfMass)*norm1*norm2*norm3*norm4;
-                    r2_matrix(j,i) = r2_matrix(i,j);
-                } else if (i!=j && !centerOfMass) {
-                    r_matrix(i,j) = 0;
-                    r_matrix(j,i) = 0;
-                    r2_matrix(i,j) = 0;
-                    r2_matrix(j,i) = 0;
-                } else if (centerOfMass) {
-                    r_matrix(i,j) = integral.integrate_delta_dispersion_helper_r(c1,c2, centerOfMass)*norm1*norm2*norm3*norm4;
-                    r_matrix(j,i) = r_matrix(i,j);
-                    r2_matrix(i,j) = integral.integrate_delta_dispersion_helper_r2(c1,c2, centerOfMass)*norm1*norm2*norm3*norm4;
-                    r2_matrix(j,i) = r2_matrix(i,j);
-                } else {
-                    std::cerr << "Matrix estimation error" << std::endl;
+
+                
+                double r1_val = integral.integrate_r1(norm1,norm2,norm3,norm4);
+                double r1_squared_val = integral.integrate_r1_squared(norm1,norm2,norm3,norm4);
+                double r1r2_val = integral.integrate_r1r2(norm1,norm2,norm3,norm4);
+
+                // I can't find reason for that code, but it does influense dispersion for lower maximal quantum numbers
+                //r1_val = std::abs(r1_val);
+                //r1_squared_val = std::abs(r1_squared_val);
+                //r1r2_val = std::abs(r1r2_val);
+
+                double r_elem = c1*c2*(r1_val+r1_val)*0.5;
+                double r_squared_elem;
+
+                if (centerOfMass){
+                    r_squared_elem = c1*c2*(2*r1_squared_val+2*r1r2_val)*0.25;
                 }
-/*
-                if (r_matrix(i,j)>=1 || r2_matrix(i,j)>=1){
-                    std::cout << "r value: " << r_matrix(i,j) << " r^2 value: " << r2_matrix(i,j) << " c1, c2: " << c1 <<' '<< c2  << std::endl;
-                    std::cout << "frst n1,u1,m1,n2,u2,m2:";
-                    for (int k=0; k<6 ; ++k){
-                        std::cout << l1l2[k]; 
-                    }
-                    std::cout << std::endl;
-                    std::cout << "scnd n1,u1,m1,n2,u2,m2:";
-                    for (int k=0; k<6 ; ++k){
-                        std::cout << l3l4[k]; 
-                    }
-                    std::cout << std::endl;
+                else{
+                    r_squared_elem = c1*c2*r1_squared_val;
                 }
-*/
+                r_matrix(i,j) = r_elem;
+                r_matrix(j,i) = r_elem;
+                r2_matrix(i,j) = r_squared_elem;
+                r2_matrix(j,i) = r_squared_elem;
+
             }
         }
     double rsum = r_matrix.sum();
@@ -294,7 +285,7 @@ int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool c
     double g_dip = 1.;
     double lengthmax = 20;
     double length0 = 0.01;
-    const unsigned int numofsteps = 100;
+    const unsigned int numofsteps = 10;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
 
