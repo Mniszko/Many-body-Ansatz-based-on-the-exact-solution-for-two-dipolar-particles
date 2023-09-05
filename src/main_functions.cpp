@@ -232,6 +232,14 @@ double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vecto
                 double c1 = array[i];
                 double c2 = array[j];
 
+                if (std::abs(c1*c2) < 1e-8){
+                    r_matrix(i,j) = 0;
+                    r_matrix(j,i) = 0;
+                    r2_matrix(i,j) = 0;
+                    r2_matrix(j,i) = 0;
+                    continue;
+                }
+
                 //ensure that this code is correct
                 double norm1 = norms.at(i)[0];
                 double norm2 = norms.at(i)[1];
@@ -285,7 +293,7 @@ int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool c
     double g_dip = 1.;
     double lengthmax = 20;
     double length0 = 0.01;
-    const unsigned int numofsteps = 10;
+    const unsigned int numofsteps = 100;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
 
@@ -326,7 +334,7 @@ int delta_loop(int argc, char* argv[], int nmax, int umax, int mmax){
     double g_dip = 1.;
     double length = 1.;
     double gmax = 40.;
-    const unsigned int numofsteps = 20;
+    const unsigned int numofsteps = 100;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
     deleteFilesWithPrefix();
@@ -347,7 +355,7 @@ int length_loop(int argc, char* argv[], int nmax, int umax, int mmax){
     double g = 1.;
     double g_dip = 10000.;
     double lengthmax = 100;
-    const unsigned int numofsteps = 20;
+    const unsigned int numofsteps = 100;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
     deleteFilesWithPrefix();

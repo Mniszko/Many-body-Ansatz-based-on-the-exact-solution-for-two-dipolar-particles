@@ -150,7 +150,7 @@ double CompleteIntegral::fast_add_over_harmonic(
   int n2 = this->l2[0];
   int u2 = this->l2[1];
   int m2 = this->l2[2];
-  double result = (n1 * n1 + n2 * n2) * 0.5 * pi * pi * this->rev_length *
+  double result = (n1 * n1 + n2 * n2) * 2 * pi * pi * this->rev_length *
                       this->rev_length +
                   2 * u1 + 2 * u2 + m1 + m2 + 2;
   return result;
@@ -178,6 +178,16 @@ double CompleteIntegral::integrate_over_delta(double g_del) {
     return 0;
   }
   IntegrationWorkspace wsp(this->limit);
+  
+  double Nsymij = sqrt(0.5);
+  double Nsymkl = sqrt(0.5);
+  if (this->delta(n1,u1,m1,n2,u2,m2)==1){
+    Nsymij = 0.5;
+  }
+  if (this->delta(n4,u4,m4,n3,u3,m3)==1){
+    Nsymkl = 0.5;
+  }
+
   auto inner = make_gsl_function([&](double rho) {
     // inside of a function
     /*
@@ -195,10 +205,11 @@ double CompleteIntegral::integrate_over_delta(double g_del) {
     double psi2 = radial_function(rho, n2, u2, m2);
     double psi3 = radial_function(rho, n3, u3, m3);
     double psi4 = radial_function(rho, n4, u4, m4);
-    return psi1 * psi2 * psi3 * psi4;
+    //return psi1 * psi2 * psi3 * psi4;
+    return (psi1 * psi2 + psi1 * psi2)*(psi3 * psi4 + psi4 * psi3);
   });
   gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp, &result, &abserr);
-  return result * g_del;
+  return result * g_del * Nsymij * Nsymkl;
 }
 
 double CompleteIntegral::dipole_integral_function(std::array<int, 3> l1,
@@ -418,7 +429,7 @@ double CompleteIntegral::integrate_r1(double normi, double normj, double normk, 
   return result * Nsymij*Nsymkl;
 }
 
-double CompleteIntegral::integrate_r1_squared(double, double, double, double) {
+double CompleteIntegral::integrate_r1_squared(double normi, double normj, double normk, double norml) {
   double result, abserr;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
@@ -438,11 +449,6 @@ double CompleteIntegral::integrate_r1_squared(double, double, double, double) {
   int ul = l[1];
   int ml = l[2];
   IntegrationWorkspace wsp1(this->limit);
-
-  double normi = 1 / std::sqrt(this->integrate_norm_external(ni, ui, mi));
-  double normj = 1 / std::sqrt(this->integrate_norm_external(nj, uj, mj));
-  double normk = 1 / std::sqrt(this->integrate_norm_external(nk, uk, mk));
-  double norml = 1 / std::sqrt(this->integrate_norm_external(nl, ul, ml));
 
   double deljl = this->delta(nj, uj, mj, nl, ul, ml);
   double deljk = this->delta(nj, uj, mj, nk, uk, mk);
@@ -493,7 +499,7 @@ double CompleteIntegral::integrate_r1_squared(double, double, double, double) {
                       &result, &abserr);
   return result * Nsymij*Nsymkl;
 }
-double CompleteIntegral::integrate_r1r2(double, double, double, double) {
+double CompleteIntegral::integrate_r1r2(double normi, double normj, double normk, double norml) {
   double result, abserr, result_inner, abserr_inner;
   double epsabs = this->epsabs, epsrel = this->epsrel, limit = this->limit;
   auto l = this->l1;
@@ -515,11 +521,6 @@ double CompleteIntegral::integrate_r1r2(double, double, double, double) {
   IntegrationWorkspace wsp1(this->limit);
   IntegrationWorkspace wsp2(this->limit);
 
-  double normi = 1 / std::sqrt(this->integrate_norm_external(ni, ui, mi));
-  double normj = 1 / std::sqrt(this->integrate_norm_external(nj, uj, mj));
-  double normk = 1 / std::sqrt(this->integrate_norm_external(nk, uk, mk));
-  double norml = 1 / std::sqrt(this->integrate_norm_external(nl, ul, ml));
-
   double delNik = this->delta(ni, nk);
   double delNil = this->delta(ni, nl);
   double delNjk = this->delta(nj, nk);
@@ -529,6 +530,10 @@ double CompleteIntegral::integrate_r1r2(double, double, double, double) {
   double delMil = this->delta(mi, ml);
   double delMjk = this->delta(mj, mk);
   double delMjl = this->delta(mj, ml);
+
+  if (delNik==0 && delNil==0 && delNjk==0 && delNjl==0){
+    return 0;
+  }
 
   double Nsymij = sqrt(0.5);
   double Nsymkl = sqrt(0.5);
@@ -560,7 +565,7 @@ double CompleteIntegral::integrate_r1r2(double, double, double, double) {
                      rho1 * rho2;
       double elem3 = delNjk * delNil * delMjk * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
                      rho1 * rho2;
-      double elem4 = delNjl * delNik * delMjl * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
+      double elem4 = delNjl * delNik * delMjl * delMik * Rj1 * Rl1 * Ri2 * Rk2 *
                      rho1 * rho2;
 
       double finval = elem1 + elem2 + elem3 + elem4;

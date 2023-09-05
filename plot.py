@@ -106,7 +106,7 @@ def plot_first_coefficient():
 
 
 if __name__ == "__main__": 
+    plot_length_output()
+    plot_first_coefficient()
+    plot_g_output()
     plot_dispersion_output()
-    #plot_length_output()
-    #plot_first_coefficient()
-    #plot_g_output()
