@@ -73,6 +73,9 @@ void CompleteIntegral::print_result() {
 }
 
 void CompleteIntegral::changeMultiIndex(int n, int u, int m, int changer) {
+  if (u<0){
+    std::cerr << "Radial quantum number is set to nonphysical value" << std::endl;
+  }
   if (changer == 1) {
     this->l1 = {n, u, m};
   } else if (changer == 2) {
@@ -85,8 +88,8 @@ void CompleteIntegral::changeMultiIndex(int n, int u, int m, int changer) {
 }
 void CompleteIntegral::changeLimit(int limit) { this->limit = limit; }
 double CompleteIntegral::radial_function(double r, int n, int u, int m) {
-  double psi = std::exp(-h * r * r * 0.5) * this->fast_power(r, m) *
-               boost::math::hypergeometric_1F1(-u, m + 1, r * r * h);
+  double psi = std::exp(-h * r * r * 0.5) * this->fast_power(r, abs(m)) *
+               boost::math::hypergeometric_1F1(-u, abs(m) + 1, r * r * h);
   return psi;
 }
 
@@ -152,7 +155,7 @@ double CompleteIntegral::fast_add_over_harmonic(
   int m2 = this->l2[2];
   double result = (n1 * n1 + n2 * n2) * 2 * pi * pi * this->rev_length *
                       this->rev_length +
-                  2 * u1 + 2 * u2 + m1 + m2 + 2;
+                  2 * u1 + 2 * u2 + abs(m1) + abs(m2) + 2;
   return result;
 }
 
@@ -174,11 +177,12 @@ double CompleteIntegral::integrate_over_delta(double g_del) {
   int n4 = l[0];
   int u4 = l[1];
   int m4 = l[2];
-  if (m3 * m4 != m1 * m2 || n3 * n4 != n1 * n2) {
+  if (m3 + m4 != m1 + m2 || n3 + n4 != n1 + n2) {
     return 0;
   }
   IntegrationWorkspace wsp(this->limit);
   
+  //setting symmetrization normalization coefficients
   double Nsymij = sqrt(0.5);
   double Nsymkl = sqrt(0.5);
   if (this->delta(n1,u1,m1,n2,u2,m2)==1){

@@ -36,7 +36,7 @@ void functions::write_to_file(std::string filename, const std::vector<std::strin
         file.close(); // Close file
     }
 //generates combination excluding permutations of single particle states (quantum number triplets)
-std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mmin, int nmax, int umax, int mmax) { 
+std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mmin, int nmax, int umax, int mmax, bool positive) { 
     auto combinations = new std::vector<std::array<int, 6>>;
 
     for (int n1 = 0; n1 <= nmax; ++n1) {
@@ -49,10 +49,17 @@ std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mm
                             if (std::find(combinations->begin(), combinations->end(), target_array) != combinations->end()) {
                                     continue;
                                 }//reduces output array by half (doesn't allow repeating permutations of multiindeces)
+                            if (positive){
+                                std::array<int,6> new_element = {n1, u1, m1, n2, u2, m2};
+                                combinations->push_back(new_element);
+                            } else if (n1-n2==0 && m1-m2 == 0) {
+                                
+                                std::array<int,6> new_element = {n1, u1, m1, -n2, u2, -m2};
+                                combinations->push_back(new_element);
+                            } else {
+                                continue;
+                            }
 
-                            std::array<int,6> new_element = {n1, u1, m1, n2, u2, m2};
-                            
-                            combinations->push_back(new_element);
                         }
                     }
                 }
