@@ -49,7 +49,7 @@ class functions{
     void write_to_file(std::string, const std::vector<std::string>&, const std::vector<std::vector<double>>&, std::string);
 };
 
-std::vector<std::array<int, 6>>* generateCombinations(int,int,int,int,int,int,bool positive=false);
+std::vector<std::array<int, 6>>* generateCombinations(int,int,int,int,int,int,bool positive=false, double cutoff=0.);
 void print_matrix(double**, unsigned int);
 void write_to_csv(const std::string &, 
                   const std::vector<double> &, 

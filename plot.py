@@ -11,6 +11,17 @@ import os
 import re
 import numpy as np
 
+def flatten_list(lst):
+    flat_list = []
+
+    for item in lst:
+        if isinstance(item, list):
+            flat_list.extend(flatten_list(item))
+        elif isinstance(item, str):
+            flat_list.append(item)
+
+    return flat_list
+
 def plot_csv_data(filename):
     # Read the CSV file using pandas
     subprocess.run(["make"])
@@ -29,28 +40,30 @@ def plot_csv_data(filename):
 def plot_length_output(loglog=True):    
     
     filenames = glob.glob("length_output[0-9][0-9][0-9].csv")
+    filenames.append(glob.glob("length_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
+    filenames.append(glob.glob("length_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
+    filenames = flatten_list(filenames)
     print(filenames)
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
-        numbers = re.findall(r'(\d)', fname)
-        legend_label = '({})'.format(', '.join(numbers))
+        numbers = re.findall(r'(\d+)\.0', fname)
+        legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
         if loglog:
             plt.loglog(data['X'], data['Y'], marker='o', label=legend_label)  
         else:
             plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
-    
 
     #reference line - 1D fermionization energy
     refline = lambda L : 2+4*np.pi**2/L**2*(2-1/2)/6
     #refline = lambda L : 2+4*np.pi**2/L**2
-    L = np.linspace(1e-6,20,int(2e3))
+    L = np.linspace(1e-6,100,int(2e3))
     plt.plot(L,refline(L),ls="dashed",label="analytic solution in 1D")
 
 
 
     plt.ylim(2,5)
-    plt.xlim(-1e-1,20)
+    plt.xlim(1/2,25)
     plt.xlabel('$L$')
     plt.ylabel('$E_0$')
     plt.legend()
@@ -58,48 +71,59 @@ def plot_length_output(loglog=True):
     plt.grid(True)
     plt.show()
 
-def plot_dispersion_output():
-    data = pd.read_csv("dispersion_outputCOM.csv",header=1)
-    plt.plot(data['X'], data['Y'], marker='o',c='orangered',label="center of mass dispersion")
+def plot_dispersion_output(loglog=False):
 
-    data = pd.read_csv("dispersion_outputCOG.csv",header=1)
-    plt.plot(data['X'], data['Y'], marker='o',c='orchid',label="single particle dispersion")
+    filenames = glob.glob("dispersion_output[0-9][0-9][0-9]COG.csv")
+    filenames.extend(glob.glob("dispersion_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COG.csv"))
+    filenames.extend(glob.glob("dispersion_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COG.csv"))
+    
+    filenames = flatten_list(filenames)
+    print(filenames)
 
+    for fname in filenames:
+        data = pd.read_csv(fname, header=1)
+        
+        numbers = re.findall(r'(\d+)\.', fname)
+        legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
+        plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
+
+    filenames = glob.glob("dispersion_output[0-9][0-9][0-9]COM.csv")
+    filenames.extend(glob.glob("dispersion_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COM.csv"))
+    filenames.extend(glob.glob("dispersion_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COM.csv"))
+    
+    filenames = flatten_list(filenames)
+    print(filenames)
+
+    for fname in filenames:
+        data = pd.read_csv(fname, header=1)
+        
+        numbers = re.findall(r'(\d+)\.', fname)
+        legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
+        plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
+
+    # Your other plotting code
     plt.xlabel('$L$')
     plt.ylabel(r'$\Delta \rho$')
     
-    # Assuming major ticks are at every 10 units (you can adjust this as needed)
-    
-    major_tick_spacingy = 0.05
-    minor_tick_spacingy = major_tick_spacingy / 6
-    
-    major_tick_spacingx = max(data['X'])/5
-    minor_tick_spacingx = major_tick_spacingx / 6
-    
-    ax = plt.gca()
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(major_tick_spacingx))
-    ax.xaxis.set_minor_locator(ticker.MultipleLocator(minor_tick_spacingx))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(major_tick_spacingy))
-    ax.yaxis.set_minor_locator(ticker.MultipleLocator(minor_tick_spacingy))
-    ax.grid(which='minor', linestyle='--', linewidth=0.5)
-    
-    plt.xlim(-5e-1,8)
-    plt.plot(np.array([-1,8]),[0.42625,0.42625],c='brown',ls="dashed")
-    plt.plot(np.array([-1,8]),[0.30140,0.30140],c='brown',ls="dashed",label=r"dispersion in $L\rightarrow\infty$")
+    plt.xlim(-5e-1,25)
+   #plt.plot(np.array([-1,100]),[0.42625,0.42625],c='brown',ls="dashed")
+   #plt.plot(np.array([-1,100]),[0.30140,0.30140],c='brown',ls="dashed",label=r"dispersion in $L\rightarrow\infty$")
     plt.legend()
-    #plt.title('Dispersion of lowest energy eigenfunction for $g=1$, Dirac delta interaction')
     plt.grid(True, which='both')  # This will enable grid for both major and minor ticks
     plt.show()
 
 def plot_g_output():
     
     filenames = glob.glob("g_output[0-9][0-9][0-9].csv")
+    filenames.append(glob.glob("g_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
+    filenames.append(glob.glob("g_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
+    filenames = flatten_list(filenames)
     print(filenames)
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
-        numbers = re.findall(r'(\d)', fname)
-        legend_label = '({})'.format(', '.join(numbers))
+        numbers = re.findall(r'(\d+)\.0', fname)
+        legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
         
         plt.plot(data['X'], data['Y'], marker='o', label=legend_label) 
     
@@ -112,7 +136,7 @@ def plot_g_output():
     plt.xlabel('$g$')
     plt.ylabel('$E_0$')
     #plt.title('$E_0$ for $L=1$, Dirac delta interaction')
-    #plt.legend()
+    plt.legend()
     plt.grid(True)
     plt.show()
     plt.savefig("delta-g-plot.svg",format="svg")
@@ -169,10 +193,10 @@ if __name__ == "__main__":
     matplotlib.rcParams['font.family'] = 'STIXGeneral'
 
 
-    # FUNKCJE NIEAKTUALNE! nie uwzględniają nowych nazw plików
+
+    plot_g_output()
     plot_length_output()
     plot_length_output(False)
     #plot_first_coefficient()
     
-    #plot_g_output()
-    #plot_dispersion_output()
+    plot_dispersion_output()

@@ -19,7 +19,7 @@
 
 const double pi = 3.14159265358979323846;
 
-double main_loop(int argc, char* argv[], double g, double g_dip, double length, int nmax, int umax, int mmax, bool WriteWaveFunction){
+double main_loop(int argc, char* argv[], double g, double g_dip, double length, int nmax, int umax, int mmax, bool WriteWaveFunction, double cutoff){
     double epsabs = 1e-8;
     double epsrel = 1e-6;
     size_t limit = 100;
@@ -55,7 +55,7 @@ double main_loop(int argc, char* argv[], double g, double g_dip, double length, 
     std::vector<std::array<int,6>> checker_array;
     integral.change_key(6);
 
-    std::vector<std::array<int, 6>> vector_of_vectors = *generateCombinations(nmin, umin, mmin, nmax, umax, mmax, false);
+    std::vector<std::array<int, 6>> vector_of_vectors = *generateCombinations(nmin, umin, mmin, nmax, umax, mmax, false, cutoff);
     unsigned int number_of_functions = vector_of_vectors.size();
     std::vector<std::array<double,2>> norms;
     for (int i = 0; i<number_of_functions ; ++i){
@@ -141,7 +141,7 @@ double main_loop(int argc, char* argv[], double g, double g_dip, double length, 
                 main_matrix(j,i) = result;
             }
         }
-        //saving matrix(debugging)
+        //saving matrix
         std::ofstream file("./testy/sample_matrix.csv");
         if (file.is_open()) {
             for (int row = 0; row < main_matrix.rows(); ++row) {
@@ -196,7 +196,7 @@ double main_loop(int argc, char* argv[], double g, double g_dip, double length, 
 }
 
 //calculate_full_dispersion is very simmilar to main_loop but lacks option to debug using flags
-double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vectors, double* array, bool centerOfMass){
+double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vectors, double* array, bool centerOfMass, double cutoff){
     int number_of_functions = vector_of_vectors.size();
     double epsabs = 1e-8; //maybe making number if recursions higher would be a good idea
     double epsrel = 1e-6;
@@ -288,12 +288,12 @@ double calculate_full_dispersion(std::vector<std::array<int, 6>> vector_of_vecto
     return radial_dispersion;
 }
 
-int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool centerOfMass){
-    double g = 1.;
-    double g_dip = 1.;
-    double lengthmax = 20;
-    double length0 = 0.01;
-    const unsigned int numofsteps = 20;
+int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool centerOfMass, double cutoff){
+    double g = 5.;
+    double g_dip = 0.;
+    double lengthmax = 25;
+    double length0 = 0.5;
+    const unsigned int numofsteps = 30;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
 
@@ -303,15 +303,15 @@ int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool c
     //int n1 = 0, m1 = 0, u1 = 0, n2 = 0, m2 = 0, u2 = 0, n3 = 0, m3 = 0, u3 = 0, n4 = 0, m4 = 0, u4 = 0;
     FlagParser flag_parser(argc, argv);
     flag_parser.parse_flags();
-    std::vector<std::array<int, 6>> vector_of_vectors = *generateCombinations(nmin, umin, mmin, nmax, umax, mmax, false);
+    std::vector<std::array<int, 6>> vector_of_vectors = *generateCombinations(nmin, umin, mmin, nmax, umax, mmax, false, cutoff);
     unsigned int number_of_functions = vector_of_vectors.size();
     deleteFilesWithPrefix();
     for (double length=length0; length < lengthmax ; length+=(lengthmax-length0)/numofsteps){
-        main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax, true);
+        main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax, true, cutoff);
         double* array = readLastColumn("./vector_outputs/lowest_wavefunction"+std::to_string(length)+".csv", number_of_functions);
         auto start = std::chrono::high_resolution_clock::now();
         std::cout << "-----------------------------------------" << std::endl;
-        double value = calculate_full_dispersion(vector_of_vectors, array, centerOfMass);
+        double value = calculate_full_dispersion(vector_of_vectors, array, centerOfMass, cutoff);
         std::cout << "result: " << value << "\tfile read:" << length <<std::endl;
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(end - start).count();
@@ -323,40 +323,50 @@ int dispersion_loop(int argc, char* argv[], int nmax, int umax, int mmax, bool c
     if(!centerOfMass){
         nameAddon[2] = 'G';
     }
-    std::string filename = "dispersion_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax);
+    std::string filename;
+    if (cutoff == 0.){
+        filename = "dispersion_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax);
+    } else {
+        filename = "dispersion_output_cutoff"+std::to_string(cutoff);
+    }
     filename.append(nameAddon);
     filename.append(".csv");
     write_to_csv(filename,xvalues,yvalues, nmax, umax, mmax);
     return 0;
 }
 
-int delta_loop(int argc, char* argv[], int nmax, int umax, int mmax){
+int delta_loop(int argc, char* argv[], int nmax, int umax, int mmax, double cutoff){
     double g_dip = 1.;
     double length = 1.;
-    double gmax = 400.;
+    double gmax = 50.;
     const unsigned int numofsteps = 20;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
     deleteFilesWithPrefix();
     for (double g=0; g < gmax ; g+=gmax/numofsteps){
         auto start = std::chrono::high_resolution_clock::now();
-        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax);
+        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax, true, cutoff);
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(end - start).count();
         std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << g*numofsteps/gmax << '/'<<numofsteps<< std::endl;
         yvalues.push_back(value);
         xvalues.push_back(g);
     }
-    write_to_csv("g_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    if (cutoff == 0.){
+        write_to_csv("g_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    } else {
+        write_to_csv("g_output_cutoff"+std::to_string(cutoff)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    }
+    
     return 0;
 }
 
-int length_loop(int argc, char* argv[], int nmax, int umax, int mmax){
-    double g = 200.;
-    double g_dip = 10000.;
-    double lengthmax = 20; 
-    double lengthmin = 1e-6;
-    const unsigned int numofsteps = 20;
+int length_loop(int argc, char* argv[], int nmax, int umax, int mmax, double cutoff){
+    double g = 5.;
+    double g_dip = 0.;
+    double lengthmax = 25; 
+    double lengthmin = 0.5;
+    const unsigned int numofsteps = 30;
     std::vector<double> yvalues;
     std::vector<double> xvalues;
     deleteFilesWithPrefix();
@@ -367,18 +377,22 @@ int length_loop(int argc, char* argv[], int nmax, int umax, int mmax){
         double fraction = static_cast<double>(i) / (numofsteps - 1);
         double length = lengthmin * std::pow(lengthmax / lengthmin, fraction);
         auto start = std::chrono::high_resolution_clock::now();
-        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax,true);
+        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax,true, cutoff);
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(end - start).count();
         std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << i << '/'<<numofsteps<< std::endl;
         yvalues.push_back(value);
         xvalues.push_back(length);
     }
-    write_to_csv("length_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    if (cutoff == 0.){
+        write_to_csv("length_output"+std::to_string(nmax)+std::to_string(umax)+std::to_string(mmax)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    } else {
+        write_to_csv("length_output_cutoff"+std::to_string(cutoff)+".csv",xvalues,yvalues, nmax, umax, mmax);
+    }
     return 0;
 }
 
-int dipole_loop(int argc, char* argv[], int nmax, int umax, int mmax){
+int dipole_loop(int argc, char* argv[], int nmax, int umax, int mmax, double cutoff){
     double g = 1.;
     double g_dip = 1.;
     double lengthmax = 10;
@@ -388,7 +402,7 @@ int dipole_loop(int argc, char* argv[], int nmax, int umax, int mmax){
     deleteFilesWithPrefix();//cleans vector outputs folder
     for (double length=0.01; length < lengthmax ; length+=lengthmax/numofsteps){
         auto start = std::chrono::high_resolution_clock::now();
-        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax);
+        double value = main_loop(argc, argv, g, g_dip, length, nmax, umax, mmax, cutoff);
         auto end = std::chrono::high_resolution_clock::now();
         double elapsed_seconds = std::chrono::duration<double>(end - start).count();
         std::cout<< "time elapsed per iteration: "<< elapsed_seconds << " s "<< "iteration number: " << length*numofsteps/lengthmax << '/'<<numofsteps<< std::endl;

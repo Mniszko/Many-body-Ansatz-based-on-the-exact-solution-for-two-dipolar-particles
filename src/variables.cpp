@@ -1,5 +1,6 @@
 #include "variables.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -10,6 +11,7 @@
 #include <dirent.h>
 #include <unistd.h>
 
+const double pi = 3.141592653589793;
 
 void functions::write_to_file(std::string filename, const std::vector<std::string>& parameters, const std::vector<std::vector<double>>& values, std::string extrainfo) {
         std::ofstream file(filename); // Open file
@@ -36,35 +38,65 @@ void functions::write_to_file(std::string filename, const std::vector<std::strin
         file.close(); // Close file
     }
 //generates combination excluding permutations of single particle states (quantum number triplets)
-std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mmin, int nmax, int umax, int mmax, bool positive) { 
+std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mmin, int nmax, int umax, int mmax, bool positive, double cutoff) { 
     auto combinations = new std::vector<std::array<int, 6>>;
-
-    for (int n1 = 0; n1 <= nmax; ++n1) {
-        for (int u1 = 0; u1 <= umax; ++u1) {
-            for (int m1 = 0; m1 <= mmax; ++m1) {
-                for (int n2 = 0; n2 <= nmax; ++n2) {
-                    for (int u2 = 0; u2 <= umax; ++u2) {
-                        for (int m2 = 0; m2 <= mmax; ++m2) {
-                            std::array<int,6> target_array = {n2,u2,m2,n1,u1,m1};
-                            if (std::find(combinations->begin(), combinations->end(), target_array) != combinations->end()) {
+    if (nmax!=-1){
+        for (int n1 = 0; n1 <= nmax; ++n1) {
+            for (int u1 = 0; u1 <= umax; ++u1) {
+                for (int m1 = 0; m1 <= mmax; ++m1) {
+                    for (int n2 = 0; n2 <= nmax; ++n2) {
+                        for (int u2 = 0; u2 <= umax; ++u2) {
+                            for (int m2 = 0; m2 <= mmax; ++m2) {
+                                std::array<int,6> target_array = {n2,u2,m2,n1,u1,m1};
+                                if (std::find(combinations->begin(), combinations->end(), target_array) != combinations->end()) {
+                                        continue;
+                                    }//reduces output array by half (doesn't allow repeating permutations of multiindeces)
+                                if (positive){
+                                    std::array<int,6> new_element = {n1, u1, m1, n2, u2, m2};
+                                    combinations->push_back(new_element);
+                                } else if (n1-n2==0 && m1-m2 == 0) {
+                                    
+                                    std::array<int,6> new_element = {n1, u1, m1, -n2, u2, -m2};
+                                    combinations->push_back(new_element);
+                                } else {
                                     continue;
-                                }//reduces output array by half (doesn't allow repeating permutations of multiindeces)
-                            if (positive){
-                                std::array<int,6> new_element = {n1, u1, m1, n2, u2, m2};
-                                combinations->push_back(new_element);
-                            } else if (n1-n2==0 && m1-m2 == 0) {
-                                
-                                std::array<int,6> new_element = {n1, u1, m1, -n2, u2, -m2};
-                                combinations->push_back(new_element);
-                            } else {
-                                continue;
-                            }
+                                }
 
+                            }
                         }
                     }
                 }
             }
         }
+    } else if (nmax==-1 && umax==-1 && mmax==-1){//activates energy cutoff is parsed as argument of main (cutoff is stored as mmax)
+        double cutoff_energy = cutoff;
+        std::vector<std::array<int, 3>> triplets;
+        for (int n = 15; n >= 0; n--) {
+            for (int u = 15; u >= 0; u--) {
+                for (int m = u; m >= 0; m--) {
+                    double E = (pi * pi) / 2 * n * n + 2 * u + m + 1;
+
+                    if (E < cutoff_energy) {
+                        triplets.push_back({n, u, m});
+                    }
+                }
+            }
+        }
+        for (size_t i = 0; i < triplets.size(); ++i) {
+            for (size_t j = 0; j < triplets.size(); ++j) {
+                std::array<int,6> new_element = {triplets[i][0],triplets[i][1],triplets[i][2],-triplets[j][0],triplets[j][1],-triplets[j][2]};
+                //if (std::find(combinations->begin(), combinations->end(), new_element) != combinations->end()) {
+                //        continue;
+                //    }
+                combinations->push_back(new_element);
+            }
+        }
+    } else {
+        std::cerr << "error occured while generating vectors" <<std::endl;
+    }
+    if (combinations->size() == 0){
+        std::cerr << "matrix has no elements" << std::endl;
+        exit(1);
     }
 
     return combinations;

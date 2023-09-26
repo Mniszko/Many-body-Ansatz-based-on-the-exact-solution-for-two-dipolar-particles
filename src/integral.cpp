@@ -134,7 +134,7 @@ double CompleteIntegral::integrate_norm_external(int n, int u, int m) {
 
   gsl_function F = make_gsl_function([&](double rho) {
     // inside of a function
-    return this->fast_power(this->radial_function(rho, n, u, m), 2);
+    return this->fast_power(this->radial_function(rho, n, u, m), 2)*rho;
   });
   gsl_integration_qagiu(&F, 0, this->epsabs, this->epsrel, this->limit, wsp,
                         &result, &error);
@@ -210,7 +210,7 @@ double CompleteIntegral::integrate_over_delta(double g_del) {
     double psi3 = radial_function(rho, n3, u3, m3);
     double psi4 = radial_function(rho, n4, u4, m4);
     //return psi1 * psi2 * psi3 * psi4;
-    return (psi1 * psi2 + psi1 * psi2)*(psi3 * psi4 + psi4 * psi3);
+    return (psi1 * psi2 + psi1 * psi2)*(psi3 * psi4 + psi4 * psi3) *rho*rho;
   });
   gsl_integration_qagiu(inner, 0, epsabs, epsrel, limit, wsp, &result, &abserr);
   return result * g_del * Nsymij * Nsymkl;
@@ -418,10 +418,10 @@ double CompleteIntegral::integrate_r1(double normi, double normj, double normk, 
 
     // prawdopodobnie po fakcie będę musiał znormalizować wszystko   po swojemu
     // (jakiś if zależny od wartości elementów?)
-    double elem1 = deljl * delNik * delMik * Ri * Rk * rho;
-    double elem2 = deljk * delNil * delMil * Ri * Rl * rho;
-    double elem3 = delil * delNjk * delMjk * Rj * Rk * rho;
-    double elem4 = delik * delNjl * delMjl * Rj * Rl * rho;
+    double elem1 = deljl * delNik * delMik * Ri * Rk * rho * rho;
+    double elem2 = deljk * delNil * delMil * Ri * Rl * rho * rho;
+    double elem3 = delil * delNjk * delMjk * Rj * Rk * rho * rho;
+    double elem4 = delik * delNjl * delMjl * Rj * Rl * rho * rho;
 
     double finval = elem1 + elem2 + elem3 + elem4;
 
@@ -489,10 +489,10 @@ double CompleteIntegral::integrate_r1_squared(double normi, double normj, double
     // prawdopodobnie po fakcie będę musiał znormalizować wszystko po swojemu
     // (jakiś if zależny od wartości elementów?) żeby przyspieszyć można
     // definiować dopiero po odpowiednich ifach dla delt
-    double elem1 = deljl * delNik * delMik * Ri * Rk * rho * rho;
-    double elem2 = deljk * delNil * delMil * Ri * Rl * rho * rho;
-    double elem3 = delil * delNjk * delMjk * Rj * Rk * rho * rho;
-    double elem4 = delik * delNjl * delMjl * Rj * Rl * rho * rho;
+    double elem1 = deljl * delNik * delMik * Ri * Rk * rho * rho * rho;
+    double elem2 = deljk * delNil * delMil * Ri * Rl * rho * rho * rho;
+    double elem3 = delil * delNjk * delMjk * Rj * Rk * rho * rho * rho;
+    double elem4 = delik * delNjl * delMjl * Rj * Rl * rho * rho * rho;
 
     double finval = elem1 + elem2 + elem3 + elem4;
 
@@ -562,15 +562,15 @@ double CompleteIntegral::integrate_r1r2(double normi, double normj, double normk
       double Rk2 = this->radial_function(rho2, nk, uk, mk) * normk;
       double Rl2 = this->radial_function(rho2, nl, ul, ml) * norml;
 
-      // trzeba pamiętać o przemnożeniu wyniku przez 2
+
       double elem1 = delNik * delNjl * delMik * delMjl * Ri1 * Rk1 * Rj2 * Rl2 *
-                     rho1 * rho2;
+                     rho1 * rho2 * rho1 * rho2;
       double elem2 = delNil * delNjk * delMil * delMjk * Ri1 * Rl1 * Rj2 * Rk2 *
-                     rho1 * rho2;
+                     rho1 * rho2 * rho1 * rho2;
       double elem3 = delNjk * delNil * delMjk * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
-                     rho1 * rho2;
+                     rho1 * rho2 * rho1 * rho2;
       double elem4 = delNjl * delNik * delMjl * delMik * Rj1 * Rl1 * Ri2 * Rk2 *
-                     rho1 * rho2;
+                     rho1 * rho2 * rho1 * rho2;
 
       double finval = elem1 + elem2 + elem3 + elem4;
       return finval;
@@ -646,13 +646,13 @@ double CompleteIntegral::integrate_double_observable(double, double, double, dou
 
       // trzeba pamiętać o przemnożeniu wyniku przez 2
       double elem1 = delNik * delNjl * delMik * delMjl * Ri1 * Rk1 * Rj2 * Rl2 *
-                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2) * rho1 * rho2;
       double elem2 = delNil * delNjk * delMil * delMjk * Ri1 * Rl1 * Rj2 * Rk2 *
-                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2) * rho1 * rho2;
       double elem3 = delNjk * delNil * delMjk * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
-                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2) * rho1 * rho2;
       double elem4 = delNjl * delNik * delMjl * delMil * Rj1 * Rl1 * Ri2 * Rk2 *
-                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2);
+                     (2*rho1 * rho2 +rho1*rho1 + rho2*rho2) * rho1 * rho2;
 
       double finval = elem1 + elem2 + elem3 + elem4;
       return finval;
