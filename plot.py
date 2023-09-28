@@ -4,6 +4,7 @@ import matplotlib.ticker as ticker
 from matplotlib.ticker import ScalarFormatter
 import matplotlib
 from matplotlib.ticker import ScalarFormatter, MultipleLocator, AutoMinorLocator
+import matplotlib.colors as mcolors
 import subprocess
 import locale
 import glob
@@ -22,6 +23,14 @@ def flatten_list(lst):
 
     return flat_list
 
+def extract_number_from_filename(filename):
+    # This extracts the numbers from the filename
+    import re
+    numbers = re.findall(r'\d+', filename)
+    if numbers:
+        return float('.'.join(numbers))
+    return 0
+
 def plot_csv_data(filename):
     # Read the CSV file using pandas
     subprocess.run(["make"])
@@ -38,27 +47,34 @@ def plot_csv_data(filename):
     plt.show()
 
 def plot_length_output(loglog=True):    
-    
     filenames = glob.glob("length_output[0-9][0-9][0-9].csv")
     filenames.append(glob.glob("length_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
     filenames.append(glob.glob("length_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
     filenames = flatten_list(filenames)
+    filenames = sorted(filenames, key=extract_number_from_filename)
     print(filenames)
+    min_val=0
+    max_val=15
+    cmap = plt.get_cmap("magma")
+    norm = mcolors.Normalize(vmin=min_val, vmax=max_val)
+    
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
         numbers = re.findall(r'(\d+)\.0', fname)
+        value_for_color = float(numbers[0]) if numbers else 0  # Extract first number or default to 0 if not found
+        color = cmap(norm(value_for_color))
         legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
         if loglog:
-            plt.loglog(data['X'], data['Y'], marker='o', label=legend_label)  
+            plt.loglog(data['X'], data['Y'], marker='o', color=color, label=legend_label)  
         else:
-            plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
+            plt.plot(data['X'], data['Y'], marker='o', color=color, label=legend_label)
 
     #reference line - 1D fermionization energy
     refline = lambda L : 2+4*np.pi**2/L**2*(2-1/2)/6
     #refline = lambda L : 2+4*np.pi**2/L**2
     L = np.linspace(1e-6,100,int(2e3))
-    plt.plot(L,refline(L),ls="dashed",label="analytic solution in 1D")
+    plt.plot(L,refline(L),c='b',lw=4,ls="dashed",label="analytic solution in 1D")
 
 
 
@@ -78,28 +94,39 @@ def plot_dispersion_output(loglog=False):
     filenames.extend(glob.glob("dispersion_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COG.csv"))
     
     filenames = flatten_list(filenames)
+    filenames = sorted(filenames, key=extract_number_from_filename)
     print(filenames)
+
+    min_val=0
+    max_val=15
+    cmap = plt.get_cmap("magma")
+    norm = mcolors.Normalize(vmin=min_val, vmax=max_val)
 
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
         numbers = re.findall(r'(\d+)\.', fname)
+        value_for_color = float(numbers[0]) if numbers else 0  # Extract first number or default to 0 if not found
+        color = cmap(norm(value_for_color))
         legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
-        plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
+        plt.plot(data['X'], data['Y'], marker='o', color=color, label=legend_label)
 
     filenames = glob.glob("dispersion_output[0-9][0-9][0-9]COM.csv")
     filenames.extend(glob.glob("dispersion_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COM.csv"))
     filenames.extend(glob.glob("dispersion_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]COM.csv"))
     
     filenames = flatten_list(filenames)
+    filenames = sorted(filenames, key=extract_number_from_filename)
     print(filenames)
 
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
         numbers = re.findall(r'(\d+)\.', fname)
+        value_for_color = float(numbers[0]) if numbers else 0  # Extract first number or default to 0 if not found
+        color = cmap(norm(value_for_color))
         legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
-        plt.plot(data['X'], data['Y'], marker='o', label=legend_label)
+        plt.plot(data['X'], data['Y'], marker='o', color=color)
 
     # Your other plotting code
     plt.xlabel('$L$')
@@ -118,14 +145,21 @@ def plot_g_output():
     filenames.append(glob.glob("g_output_cutoff[0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
     filenames.append(glob.glob("g_output_cutoff[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9].csv"))
     filenames = flatten_list(filenames)
+    filenames = sorted(filenames, key=extract_number_from_filename)
     print(filenames)
+    min_val=0
+    max_val=15
+    cmap = plt.get_cmap("magma")
+    norm = mcolors.Normalize(vmin=min_val, vmax=max_val)
     for fname in filenames:
         data = pd.read_csv(fname, header=1)
         
         numbers = re.findall(r'(\d+)\.0', fname)
+        value_for_color = float(numbers[0]) if numbers else 0  # Extract first number or default to 0 if not found
+        color = cmap(norm(value_for_color))
         legend_label = 'E_cutoff = ' + '({})'.format(''.join(numbers))
         
-        plt.plot(data['X'], data['Y'], marker='o', label=legend_label) 
+        plt.plot(data['X'], data['Y'], marker='o', color=color, label=legend_label) 
     
     xx = np.linspace(0,20,20)
     yy = np.zeros(20)
@@ -138,6 +172,7 @@ def plot_g_output():
     #plt.title('$E_0$ for $L=1$, Dirac delta interaction')
     plt.legend()
     plt.grid(True)
+    plt.ylim(2-1e-1, 4.2)
     plt.show()
     plt.savefig("delta-g-plot.svg",format="svg")
 

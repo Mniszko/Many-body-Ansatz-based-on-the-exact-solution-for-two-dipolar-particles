@@ -1,0 +1,1 @@
+do bazy stanów należą wszystkie funkcje falowe o energii niższej niż cutoff (przy ustalonym L), dla L=8 wystąpi 6 stanów podłużnych, ok. 400 stanów w sumie. Wszystkie stany dwucząstkowe miały pęd podłużny równy 0. g wynosiło 100 dla wykresów dyspersji i energii w funkcji L. Dla wykresu energii od g, L=1.

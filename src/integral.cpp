@@ -155,7 +155,7 @@ double CompleteIntegral::fast_add_over_harmonic(
   int m2 = this->l2[2];
   double result = (n1 * n1 + n2 * n2) * 2 * pi * pi * this->rev_length *
                       this->rev_length +
-                  2 * u1 + 2 * u2 + abs(m1) + abs(m2) + 2;
+                  2 * u1 + 2 * u2  + abs(m1) + abs(m2) + 2;
   return result;
 }
 

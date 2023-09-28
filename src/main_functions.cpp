@@ -362,7 +362,7 @@ int delta_loop(int argc, char* argv[], int nmax, int umax, int mmax, double cuto
 }
 
 int length_loop(int argc, char* argv[], int nmax, int umax, int mmax, double cutoff){
-    double g = 5.;
+    double g = 100.;
     double g_dip = 0.;
     double lengthmax = 25; 
     double lengthmin = 0.5;

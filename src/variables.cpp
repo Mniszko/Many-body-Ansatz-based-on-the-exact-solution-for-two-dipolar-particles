@@ -71,10 +71,11 @@ std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mm
     } else if (nmax==-1 && umax==-1 && mmax==-1){//activates energy cutoff is parsed as argument of main (cutoff is stored as mmax)
         double cutoff_energy = cutoff;
         std::vector<std::array<int, 3>> triplets;
+        double length = 7;
         for (int n = 15; n >= 0; n--) {
             for (int u = 15; u >= 0; u--) {
                 for (int m = u; m >= 0; m--) {
-                    double E = (pi * pi) / 2 * n * n + 2 * u + m + 1;
+                    double E = 2*(pi * pi) / length/length * n * n + 2 * u + m + 1;
 
                     if (E < cutoff_energy) {
                         triplets.push_back({n, u, m});
@@ -85,10 +86,13 @@ std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mm
         for (size_t i = 0; i < triplets.size(); ++i) {
             for (size_t j = 0; j < triplets.size(); ++j) {
                 std::array<int,6> new_element = {triplets[i][0],triplets[i][1],triplets[i][2],-triplets[j][0],triplets[j][1],-triplets[j][2]};
+                
                 //if (std::find(combinations->begin(), combinations->end(), new_element) != combinations->end()) {
                 //        continue;
                 //    }
-                combinations->push_back(new_element);
+                if (triplets[i][0] == triplets[j][0]){
+                    combinations->push_back(new_element);
+                }
             }
         }
     } else {
