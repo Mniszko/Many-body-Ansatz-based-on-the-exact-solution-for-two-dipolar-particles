@@ -90,7 +90,7 @@ std::vector<std::array<int, 6>>* generateCombinations(int nmin, int umin, int mm
                 //if (std::find(combinations->begin(), combinations->end(), new_element) != combinations->end()) {
                 //        continue;
                 //    }
-                if (triplets[i][0] == triplets[j][0]){
+                if (triplets[i][0] == triplets[j][0] && triplets[i][2]==triplets[j][2]){
                     combinations->push_back(new_element);
                 }
             }

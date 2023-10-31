@@ -1,382 +1,291 @@
-#include "src/integral.h" // stores integral class with all functionalities
-#include "src/variables.h"
-#include "src/flag_parser.h" // used to parse flags
-#include "src/main_functions.h"
-#include "src/Eigen/Dense"
-#include "src/Eigen/Eigenvalues"
+#include <boost/math/special_functions/math_fwd.hpp>
 #include <iostream>
 #include <cmath>
-#include <chrono>
-#include <sstream>
-#include <exception>
-#include <string>
-#include <gsl/gsl_errno.h>
 #include <vector>
 #include <array>
-#include <algorithm>
-#include <boost/math/special_functions/hypergeometric_1F1.hpp>
+#include <functional>
+#include <map>
+#include <gsl/gsl_math.h>
 #include <gsl/gsl_integration.h>
-#include <fstream>
+#include <boost/math/special_functions/factorials.hpp>
+#include <tuple>
 
-double h=1.;
+double e = M_E;
+double pi = M_PI;
 
-double fast_power(double a, int b){
-    double result = 1;
-    for(int i=0; i<b ; ++i){
-        result *= a;
-    }
-    return result;
-}
-// Simple RAII wrapper
+double particleSize = 1e-2; // to avoid singularity at z=0, temporary approximation
+
+double epsabs = 1e-4;
+double epsrel = 1e-4;
+double length = 1;
+double invlength = 1/length;
+size_t limit = 100;
+
+// Simple RAII wrapper 
 class IntegrationWorkspace {
-  gsl_integration_workspace *wsp;
+    gsl_integration_workspace * wsp;
 
-public:
-  IntegrationWorkspace(const size_t n = 1000)
-      : wsp(gsl_integration_workspace_alloc(n)) {}
-  ~IntegrationWorkspace() { gsl_integration_workspace_free(wsp); }
+    public:
+    IntegrationWorkspace(const size_t n=1000):
+        wsp(gsl_integration_workspace_alloc(n)) {}
+    ~IntegrationWorkspace() { gsl_integration_workspace_free(wsp); }
 
-  operator gsl_integration_workspace *() { return wsp; }
+    operator gsl_integration_workspace*() { return wsp; }
 };
 
 // Build gsl_function from lambda
-template <typename F> class gsl_function_pp : public gsl_function {
-  const F func;
-  static double invoke(double x, void *params) {
-    return static_cast<gsl_function_pp *>(params)->func(x);
-  }
-
-public:
-  gsl_function_pp(const F &f) : func(f) {
-    function = &gsl_function_pp::invoke; // inherited from gsl_function
-    params = this;                       // inherited from gsl_function
-  }
-  operator gsl_function *() { return this; }
+template <typename F>
+class gsl_function_pp: public gsl_function {
+    const F func;
+    static double invoke(double x, void *params) {
+        return static_cast<gsl_function_pp*>(params)->func(x);
+    }
+    public:
+        gsl_function_pp(const F& f) : func(f) {
+        function = &gsl_function_pp::invoke; //inherited from gsl_function
+        params   = this;                     //inherited from gsl_function
+        }
+        operator gsl_function*(){return this;}
 };
 
 // Helper function for template construction
-template <typename F> gsl_function_pp<F> make_gsl_function(const F &func) {
-  return gsl_function_pp<F>(func);
+template <typename F>
+gsl_function_pp<F> make_gsl_function(const F& func) {
+    return gsl_function_pp<F>(func);
 }
 
-
-/*dispersion test*/
-/*
-int main(){
-    int nmin=0;
-    int umin=0;
-    int mmin=0;
-    int nmax=2;
-    int umax=1;
-    int mmax=1;
-
-    std::vector<std::array<double,2>> norms;
-
-    double epsabs = 1e-8;
-    double epsrel = 1e-6;
-    size_t limit = 100;
-
-    char* argv[2];
-    double length = 0.01;
-
-    CompleteIntegral integral(limit,epsabs,epsrel);
-    std::vector<std::array<int,6>> combination = *generateCombinations(nmin,umin,mmin,nmax,umax,mmax);
-    unsigned int number_of_functions = combination.size();
-    main_loop(1, argv, 1, 1, length, nmax, umax, mmax, true);
-    double* array = readLastColumn("./vector_outputs/lowest_wavefunction"+std::to_string(length)+".csv", number_of_functions);
-    Eigen::MatrixXd changerr(number_of_functions,number_of_functions);
-    Eigen::MatrixXd changerr2(number_of_functions,number_of_functions);
-    integral.change_length(1);
-    for (int i=0 ; i < number_of_functions ; ++i){
-        for (int j=0 ; j <= i ; ++j){
-            std::array<int,6> l1l2 = combination.at(i);
-            std::array<int,6> l3l4 = combination.at(j);
-
-            double c1=array[i];
-            double c2=array[j];
-
-            //double c1=array[i];
-            //double c2=array[j];
-
-            integral.changeMultiIndex(l1l2[0], l1l2[1], l1l2[2], 1);
-            integral.changeMultiIndex(l1l2[3], l1l2[4], l1l2[5], 2);
-            integral.changeMultiIndex(l3l4[0], l3l4[1], l3l4[2], 3);
-            integral.changeMultiIndex(l3l4[3], l3l4[4], l3l4[5], 4);
-
-            integral.change_length(length);
-
-
-            if (std::abs(c1*c2)<1e-8){ // there are nearly nonexisting coefficients that just bloat the calculations
-                changerr(i,j) = 0;
-                changerr2(j,i) = 0;
-                changerr(j,i) = 0;
-                changerr2(i,j) = 0;
-            }
-
-
-            double normi = 1 / std::sqrt(integral.integrate_norm_external(l1l2[0], l1l2[1], l1l2[2]));
-            double normj = 1 / std::sqrt(integral.integrate_norm_external(l1l2[3], l1l2[4], l1l2[5]));
-            double normk = 1 / std::sqrt(integral.integrate_norm_external(l3l4[0], l3l4[1], l3l4[2]));
-            double norml = 1 / std::sqrt(integral.integrate_norm_external(l3l4[3], l3l4[4], l3l4[5]));
-
-            double r1_val = integral.integrate_r1(normi,normj,normk,norml);
-            double r1_squared_val = integral.integrate_r1_squared(normi,normj,normk,norml);
-            double r1r2_val = integral.integrate_r1r2(normi,normj,normk,norml);
-
-            // reason for using this code would be additionally getting only absolute values of c values.
-            //r1_val = std::abs(r1_val);
-            //r1_squared_val = std::abs(r1_squared_val);
-            //r1r2_val = std::abs(r1r2_val);
-
-            //explicit to be understandable
-            // symnorm equals to 1/2 or 1/sqrt(2) for each wavefunction
-            double r_elem = c1*c2*(r1_val+r1_val)*0.5;
-            double r_squared_elem = c1*c2*(2*r1_squared_val+2*r1r2_val)*0.25;
-            r_squared_elem=c1*c2*r1_squared_val;
-            
-            if (i==0 && j==0){
-                std::cout << c1 << ' ' << c2 << std::endl;
-                std::cout << "squared: " << r1_squared_val << std::endl;
-                std::cout << "single: " << r1_val << std::endl;
-                std::cout << l1l2[0] << l1l2[1] << l1l2[2] << std::endl;
-                std::cout << l1l2[3] << l1l2[4] << l1l2[5] << std::endl;
-                std::cout << l3l4[0] << l3l4[1] << l3l4[2] << std::endl;
-                std::cout << l3l4[3] << l3l4[4] << l3l4[5] << std::endl;
-            }
-            changerr(i,j) = r_elem;
-            changerr2(j,i) = r_squared_elem;
-            changerr(j,i) = r_elem;
-            changerr2(i,j) = r_squared_elem;
-        }
-    }
-    Eigen::MatrixXd changer =changerr;
-
-    std::ofstream file("./testy/sample_matrix.csv");
-    if (file.is_open()) {
-        for (int row = 0; row < changer.rows(); ++row) {
-            for (int col = 0; col < changer.cols(); ++col) {
-                file << changer(row, col);
-                if (col + 1 < changer.cols())
-                    file << ", ";  // Add comma for all but last element
-            }
-            file << "\n";  // Newline for next row
-        }
-    } else {
-        std::cerr << "Failed to open the file: " << "./testy/sample_matrix.csv" << std::endl;
-    }
-
-    file.close();
-
-    changer =changerr2;
-
-    file.open("./testy/sample_matrix2.csv");
-    if (file.is_open()) {
-        for (int row = 0; row < changer.rows(); ++row) {
-            for (int col = 0; col < changer.cols(); ++col) {
-                file << changer(row, col);
-                if (col + 1 < changer.cols())
-                    file << ", ";  // Add comma for all but last element
-            }
-            file << "\n";  // Newline for next row
-        }
-    } else {
-        std::cerr << "Failed to open the file: " << "./testy/sample_matrix.csv" << std::endl;
-    }
-
-    double rsum = changerr.sum();
-    double r2sum = changerr2.sum();
-
-    //rsum=r_matrix(0,0);
-    //r2sum = r2_matrix(0,0);
-    std::cout << "r2sum = " <<r2sum << std::endl;
-    std::cout << "rsum = " << rsum << std::endl;
-    double radial_dispersion = sqrt(r2sum-rsum*rsum);
-    std::cout << "dyspersja = " << radial_dispersion << std::endl;
-    std::cout << "dyspersja w potędze = " << r2sum-rsum*rsum << std::endl;
-    return 0;
-}
-*/
-
-int main(){
-    double epsabs = 1e-8;
-    double epsrel = 1e-6;
-    size_t limit = 100;
-
-    int key = 6;
-
-    //CompleteIntegral integral(limit,epsabs,epsrel);
-
-    int n1=0;
-    int u1=0;
-    int m1=0;
-
-    int n2=0;
-    int u2=0;
-    int m2=0;
-
-    int n3=0;
-    int u3=0;
-    int m3=0;
-
-    int n4=0;
-    int u4=0;
-    int m4=0;
-
-    //double norm1 = integral.integrate_norm_external(n1, u1, m1);
-    //double norm2 = integral.integrate_norm_external(n2, u2, m2);
-    //double norm3 = integral.integrate_norm_external(n3, u3, m3);
-    //double norm4 = integral.integrate_norm_external(n4, u4, m4);
-
-    //integral.changeMultiIndex(n1, u1, m1, 1);
-    //integral.changeMultiIndex(n2, u2, m2, 2);
-    //integral.changeMultiIndex(n3, u3, m3, 3);
-    //integral.changeMultiIndex(n4, u4, m4, 4);
-
-    double length = 1;
-    double rev_length = 1/length;
-    double result, abserr, outer_result, outer_abserr, middle_result,
-      middle_abserr, inner_result, inner_abserr;
-
-    IntegrationWorkspace wsp1(limit);
-    IntegrationWorkspace wsp11(limit);
-    IntegrationWorkspace wsp2(limit);
-    IntegrationWorkspace wsp22(limit);
-    IntegrationWorkspace wsp3(limit);
-    IntegrationWorkspace wsp33(limit);
-    IntegrationWorkspace wsp4(limit);
-    IntegrationWorkspace wsp44(limit);
-
-    double epsilon = 2e-3;
-
-    int smthng = 0;
-    int highsmthng = 0;
-    double templimit = 15;
-    double pts[3];
-    pts[0] = 0, pts[2]=20;
-    auto full = make_gsl_function([&](double z2) {
-        if (highsmthng==limit){
-            std::cout << "made progress: " << highsmthng << "\taround " << smthng << " to go" << std::endl;
-            limit += limit;
-        }
-        smthng =0;
-        ++highsmthng;
-        auto outer = make_gsl_function([&](double z1) {
-            ++smthng;
-        auto middle = make_gsl_function([&](double rho2) {
-            auto inner = make_gsl_function([&](double rho1) {
-            // for now integration only for two particles in state |j,i>=|l,k>=|0(3),0(3)>
-                        
-            double sillyAndGoofy = (rho2-rho1)*(rho2-rho1)+(z2-z1)*(z2-z1) + epsilon;
-            
-            //this may produce unpredictable behavior
-            //to somehow justify this - we will also calculate delta potential ensuring hard-core behavior. I don't know if this will be sufficient, but I am not familiar with methods of integrating such singularities in so many dimensions.
-            
-            
-            double exponential = std::exp(-rho1*rho1-rho2*rho2);
-            double cosSqTheta = (z2-z1)*(z2-z1)/(sillyAndGoofy);
-            double evil = fast_power(std::sqrt(sillyAndGoofy), 5);
-            pts[1] = rho2; 
-            return exponential*(1-3*cosSqTheta)/evil;
-
-            });
-            // qags because we have singularity on 0
-            double addon_result, addon_abserr;
-            gsl_integration_qagp(inner, pts, 3, epsabs, epsrel, limit, wsp1,
-                                &inner_result, &inner_abserr);
-            //gsl_integration_qagiu(inner, epsilon, epsabs, epsrel, limit, wsp11, &addon_result, &addon_abserr);
-            return inner_result + addon_result;
-        });
-        double addon_result, addon_abserr;
-        gsl_integration_qag(middle, 0, 20, epsabs, epsrel, limit, key, wsp2,
-                            &middle_result, &middle_abserr);
-        //gsl_integration_qagiu(middle, epsilon, epsabs, epsrel, limit, wsp11,&addon_result, &addon_abserr);
-        return middle_result + addon_result;
-        });
-        double addon_result, addon_abserr;
-        gsl_integration_qag(outer, 0, length, epsabs, epsrel, limit, key,
-                            wsp3, &outer_result, &outer_abserr);
-        //gsl_integration_qagiu(outer, epsilon, epsabs, epsrel, limit, wsp11,&addon_result, &addon_abserr);
-        return outer_result + addon_abserr;
-    });
-    double addon_result, addon_abserr;
-    gsl_integration_qag(full, 0, length, epsabs, epsrel, limit, key, wsp3,
-                        &result, &abserr);
-    //gsl_integration_qagiu(full, epsilon, epsabs, epsrel, limit, wsp11,&addon_result, &addon_abserr);
-        
-    std::cout << "result: " << result << std::endl;
-     
-    return 0;
-}
-/*
-int main(){
+double integrateFin(int a, double z, double r2){
     double result, abserr;
-    double epsabs = 1e-8;
-    double epsrel = 1e-6;
-    size_t limit = 100;
+    
+    double lowBound = abs(z)+particleSize;
+    double highBound = std::sqrt(z*z+r2*r2);
+    
 
-    int key = 6;
+    IntegrationWorkspace wspFinite(limit);
 
-    IntegrationWorkspace wsp1(limit);
+    auto integrandFinite = make_gsl_function( [&](double u) {
 
-    double Z2MinusZ1 = 0;
-    double epsilon = 1e-8;
-    //test sampling integration to test out ways of getting away with singularities
-    //and using different integration methods
-    auto integrand = make_gsl_function([&](double rho) {
+        double exp1 = std::exp(-u*u);
+        double exp2 = std::exp(2*r2*std::sqrt(u*u-z*z));
+        double rest = std::exp(-2*r2*r2) * std::exp(-z*z);
+        double frac1 = (u*u-3*z*z)/(u*u*u*u);
+        //change to fast power:
+        double frac2 = std::pow((-std::sqrt(u*u-z*z)+r2),a)/std::sqrt(u*u-z*z);
+        return exp1*exp2*frac1*frac2*rest;
 
-        double exponential = std::exp(-rho*rho);
-        double evil = sqrt(rho*rho+Z2MinusZ1)+epsilon;
-        double potentialTerm = (1-3*Z2MinusZ1/evil)/fast_power(evil, 5); 
-        double finval = exponential*potentialTerm;
-
-
-
-        return finval;
     });
 
-    std::cout << "qag method" << std::endl;
-    gsl_integration_qag(integrand, -1, 20, epsabs, epsrel, limit, key, wsp1,&result, &abserr);
-    std::cout << "result: "<< result << std::endl;
-    std::cout << "error: " << abserr << std::endl;
+    gsl_integration_qags(integrandFinite, lowBound, highBound, epsabs, epsrel, limit, wspFinite, &result, &abserr);
 
-    std::cout << "qags method" << std::endl;
-    gsl_integration_qags(integrand, -1, 20, epsabs, epsrel, limit, wsp1,&result, &abserr);
-    std::cout << "result: "<< result << std::endl;
-    std::cout << "error: " << abserr << std::endl;
+    return result;
+}
 
-    std::cout << "qagiu method" << std::endl;
-    gsl_integration_qagiu(integrand, 0, epsabs, epsrel, limit, wsp1,&result, &abserr);
-    std::cout << "result: "<< result << std::endl;
-    std::cout << "error: " << abserr << std::endl;
+double integrateInf(int a, double z, double r2){
+    double result, abserr;
+    double result2, abserr2;
+    
+    double lowBound = abs(z)+particleSize;
+    double midBound = abs(z)+1.; // used for integration over singularity before integrating over whole space
+    IntegrationWorkspace wspInfinite(limit);
+
+    auto integrandInfinite = make_gsl_function( [&](double u) {
+
+        double exp1 = std::exp(-u*u);
+        double exp2 = std::exp(-2*r2*std::sqrt(u*u-z*z));
+        double rest = std::exp(-2*r2*r2) * std::exp(-z*z);
+        double frac1 = (u*u-3*z*z)/(u*u*u*u);
+        //change to fast power:
+        double frac2 = std::pow((std::sqrt(u*u-z*z)+r2),a)/std::sqrt(u*u-z*z);
+        return exp1*exp2*frac1*frac2*rest;
+
+    });
+
+    // two integrals are used, but in reality only the first one is important if we are considering proper boundaries (integrand goes to 0 pretty fast), thus for better performance we could drop the second one
+    gsl_integration_qags(integrandInfinite, lowBound, midBound, epsabs, epsrel, limit, wspInfinite, &result, &abserr);
+
+    gsl_integration_qagiu(integrandInfinite, midBound, epsabs, epsrel, limit, wspInfinite, &result2, &abserr2);
+
+    return result+result2;
+
+
+}
+
+double integrate_single_term(int a, double z, double r2){
+    double resultFin = integrateFin(a, z, r2);
+    double resultInf = integrateInf(a, z, r2);
+    return resultFin+resultInf;
+}
+
+//funkcja do usunięcia
+double raising_factorial(double x, int i){
+    return boost::math::rising_factorial(x,i);
+}
+
+//tutaj powinienem parsować tylko to co potrzebne - wcześniej zbuduję pojedyńczy wektor z polynomiali
+double integrate_fourth(double r2, double z, std::vector<std::tuple<double, int>> polynomial){
+    double result=0;
+    //std::cout << "pol length: " << polynomial.size() << std::endl;
+    //teraz należy policzyć całki dla każdego z elementów wielomianu
+    //przy kompilacji trzeba zwrócić uwagę na wersję C++17 lub wyższą
+    for (const auto& [A, a] : polynomial) {
+        result += integrate_single_term(a+1, z, r2); // +1 added because of how scalar product in cylindrical coordinates works
+    }
+    return result;
+}
+//całkowanie pozostałych powinno być osiągnięte całką 3 rzędu nestowaną w ten sam sposób co pozostałe.
+
+//to idzie do pliku variables.h i .cpp
+std::vector<std::tuple<double, int>> multiplyPolynomial(std::vector<std::tuple<double, int>> pol1, std::vector<std::tuple<double, int>> pol2){
+    std::vector<std::tuple<double, int>> resultingPolynomial;
+
+    for(int i=0 ; i<pol1.size() ; ++i){
+        for(int j=0 ; j<pol2.size() ; ++j){
+            resultingPolynomial.push_back(
+                    (std::tuple<double, int>) { //accessing tuple contents by index done with get, two object array casted as tuple, there are better ways of doing that with C++17
+                        std::get<0>(pol1.at(i))*std::get<0>(pol2.at(j)),
+                        std::get<1>(pol1.at(i))+std::get<1>(pol2.at(j))
+                    }
+                );
+        }
+    }
+    return resultingPolynomial;
+}
+
+double fast_power(double a, int b) {
+  double result = 1;
+  for (int i = 0; i < b; ++i) {
+    result *= a;
+  }
+  return result;
+}
+
+double computePolynomial(double x, std::vector<std::tuple<double, int>> pol){
+    double result = 0;
+    for(int i=0 ; i<pol.size() ; ++i){
+        result += std::get<0>(pol.at(i)) + fast_power(x, std::get<1>(pol.at(i)));
+    }
+    return result;
+}
+
+//liczby kwantowe będą parsowane za pomocą klasy Integral
+double integrate_full_dipole(int n1, int u1, int m1, int n2, int u2, int m2, int n3, int u3, int m3, int n4, int u4, int m4){
+    //poniższe wielomiany powinny być kombinowane w taki którego nie będę się wstydził postawić wewnątrz czwartej całki
+    //=============================
+    std::vector<std::tuple<double, int>> polynomial1;
+    //generowanie wag i eksponensów wielomianu
+    for (int xi = 0 ; xi <= u1 ; ++xi){
+        double A = boost::math::rising_factorial(-u1,xi)/boost::math::rising_factorial(abs(m1)+1,xi)/boost::math::factorial<double>(xi);
+        std::tuple<double, int> element = {A,int(2*xi)};
+        polynomial1.push_back(element);
+    }
+
+    std::vector<std::tuple<double, int>> polynomial2;
+    for (int xi = 0 ; xi <= u2 ; ++xi){
+        double A = boost::math::rising_factorial(-u2,xi)/boost::math::rising_factorial(abs(m2)+1,xi)/boost::math::factorial<double>(xi);
+        std::tuple<double, int> element = {A,int(2*xi)};
+        polynomial2.push_back(element);
+    }
+
+    std::vector<std::tuple<double, int>> polynomial3;
+    for (int xi = 0 ; xi <= u3 ; ++xi){
+        double A = boost::math::rising_factorial(-u3,xi)/boost::math::rising_factorial(abs(m3)+1,xi)/boost::math::factorial<double>(xi);
+        std::tuple<double, int> element = {A,int(2*xi)};
+        polynomial3.push_back(element);
+    }
+
+    std::vector<std::tuple<double, int>> polynomial4;
+    for (int xi = 0 ; xi <= u4 ; ++xi){
+        double A = boost::math::rising_factorial(-u4,xi)/boost::math::rising_factorial(abs(m4)+1,xi)/boost::math::factorial<double>(xi);
+        std::tuple<double, int> element = {A,int(2*xi)};
+        polynomial4.push_back(element);
+    }
+    //=============================
+    std::vector<std::tuple<double, int>> pol_gamma = multiplyPolynomial(polynomial1, polynomial2);
+    std::vector<std::tuple<double, int>> pol_a = multiplyPolynomial(polynomial3, polynomial4);
+    //std::vector<std::tuple<double, int>> polynomial = multiplyPolynomial(pol_a, pol_gamma);
+
+    std::cout << "polynomial gamma length: " << pol_gamma.size() <<"\npolynomial a length: " << pol_a.size() << std::endl;
+
+    double result, abserr, resultInner, abserrInner, resultMiddle, abserrMiddle, resultInner2, abserrInner2;
+
+    // niepewności być może trzeba będzie zmienić żeby zaoszczędzić czas liczenia
+
+    //double particleSize = 0;
+
+    IntegrationWorkspace wspInner(limit);
+    IntegrationWorkspace wspMiddle(limit);
+    IntegrationWorkspace wspOuter(limit);
+
+    int temp_counter = 0;
+
+    auto outer = make_gsl_function( [&](double r1) {
+        auto middle = make_gsl_function( [&](double z1) {
+            auto inner = make_gsl_function( [&](double boldZ) {
+
+                //to oczywiście nie jest pełna forma, jak wcześniej muszę pamiętać o symetryzacji i policzyć cztery różne fragmenty całki
+                //poza tym będę musiał dodać delty związane z liczbami momentopędowymi
+                //ponadto muszę pamiętać o części zespolonej, a przynajmniej sprawdzeniu, czy faktycznie dąży do zera
+                // do cosinusa trzeba dodać sinus dla spełnienia założeń zespolonych
+                double Zpart = std::cos(2*pi*invlength * (-n1*z1 + n3*z1 - n2*(boldZ+z1) + n4*(boldZ+z1)));
+                //nie wiem czy compute polynomial nie wywołuje się jednokrotnie
+                //wszystko powinienem poprzekładać w swoim czasie na zewnątrz tych całek dla poprawy wydajności
+                //exp(-2*r1*r1) is inside fourth integral
+                double r1part = computePolynomial(r1, pol_gamma);
+                //double r2Leftovers = std::exp(-(boldZ)*(boldZ));
+                double r2Leftovers = 1;
+                double r2part = integrate_fourth(r1, boldZ, pol_a);
+                ++temp_counter;
+                //std::cout << r2part << std::endl;
+                //std::cout << "bold Z value : " << boldZ << "\tintegral value : " << Zpart*r1part*r2Leftovers*r2part << std::endl;
+                return Zpart*r1part*r2Leftovers*r2part;
+            });
+            //araising singularities should vanish after dropping region close to 0 or solving analitically fourth integral for specific case (last operation lets us stop gsl algorithm from derailing)
+            //std::cout << "z1 value : " << z1 << std::endl;
+            gsl_integration_qags(inner, -z1, length-z1, epsabs, epsrel, limit, wspInner, &resultInner, &abserrInner);
+            //std::cout << "value of z1: " << z1 << " result: " << resultInner+resultInner2 << std::endl;
+            return resultInner;
+        });
+        std::cout << "r2 value:\t" << r1 << std::endl;
+        gsl_integration_qags(middle, 0, length, epsabs, epsrel, limit, wspMiddle, &resultMiddle, &abserrMiddle);
+        std::cout << "\tresult of 3'rd rank integral with r1=" << r1 << " : " << resultMiddle << std::endl;
+        return resultMiddle;
+    });
+    std::cout << "first" << std::endl;
+    //gsl_integration_qagiu(outer,0 , epsabs, epsrel, limit, wspOuter, &result, &abserr);
+    gsl_integration_qags(outer, particleSize, 10 , epsabs, epsrel, limit, wspOuter, &result, &abserr);
+    std::cout << "second" << std::endl;
+    std::cout << "results: " << resultInner << ' ' << resultMiddle << ' ' << result << std::endl;
+    std::cout << "counter: " << temp_counter << std::endl;
+    return result;
+}
+
+int main(){
+
+    int a = 1;
+    double z = 1;
+    double r2 = 2;
+
+    double integralfin = integrateFin(a, z, r2);
+    double integralinf = integrateInf(a, z, r2);
+    
+    std::cout << "Finite integral result: " << integralfin << "\nInfinite integral reult: " << integralinf << std::endl;
+
+    int n1=1;
+    int u1=1;
+    int m1=1;
+    int n2=1;
+    int u2=1;
+    int m2=1;
+    int n3=1;
+    int u3=1;
+    int m3=1;
+    int n4=1;
+    int u4=1;
+    int m4=1;
+
+    double integral_full = integrate_full_dipole(n1,u1,m1,n2,u2,m2,n3,u3,m3,n4,u4,m4);
+
+    std::cout << "result of fourth order integral: " << integral_full << std::endl;
+
     return 0;
 }
-*/
-/*
-
-we're using limited range for rho due to disperssion << 10
-gaussian interpolation is set to most robust (key=6)
-
-without singularities qags and qag methods are the most fit, but all of the above achieve errors of simmilar order.
-
-integrating only gaussian works best with qags surprisingly
-
-qags and qagiu can't deal with very small values in devisor
-
-THEOREM: singularities that appear in this equation can not be integrated numerically with nested integrals.
-REASONING: integrating separately through two symmetrically defined variables will result in one specific integral giving infinite result while the other one should restrict the value going to infinity (see plots of specific). With this reason one can not simply integrate through both variables one after another, instead all singularities that cancel one another should be integrated at once (using qags method). Either pairs of integrals should have volume forms given by drdz or dzdz and drdr.
-
-other approaches I will try include:
--integrating with positive constant epsilon added to the devisor
-[this method fails as results differ strongly due to epsilon values or takes too much time to be calculated for lower values. qags, qagp and qag all the same can't manage with integrating that abomination]
--integrating with "hard core" approximation achieved by equating integrand to 0 for low values of devisor
-[this bares no useful result. Both qag and qags algorithms fail to integrate that function giving off errors]
-
-[thus any hard defined integration (e.i. trapezoidal, rectangular) and even recursive interpolation will probably fail the task]
-
-plan for now:
-- develop better reasoning behind mentioned theorem
-- try to  actually do something with it
-
-if I won't succeed I will just replicate Michał's results for bigger matrices
-
-*/
