@@ -77,12 +77,7 @@ Currently integrating only interactions in cylindrical system is possible due to
 - [x] extracting data for lowest energy state in function of $g_\delta$ and $L$
 - [x] extracting data for highest coefficient in function of $L$
 - [x] extracting data for radial dispersion in terms of geometric center (observable $\hat{\rho}_1$) and center of mass (observable $(\hat{\rho}_1+\hat{\rho}_2)/2$)
-- [ ] energy matrix for dipole interactions and its diagonalization with 4'th rank integrals
-- [ ] energy matrix for dipole interactions and its diagonalization with 4'th rank integrals with shorthands for specific states
-- [ ] energy matrix for dipole interactions and its diagonalization with 3'th rank integrals (maybe with shorthands for specific states)
-- [ ] extracting lowest energy and radial dispersion for combined delta and dipole interactions, in their respectable functions
-- [ ] writing combined loop for running all calculations at the same time (it will make the final code two- to three-fold faster)
-- [ ] use flag parser to update maximum quantum numbers and select loops by parsed flags
+- [X] energy matrix for dipole interactions and its diagonalization with 4'th rank integrals (managed to integrate only specific eigenstate energy, 4'th rank integrals are too inefficient with given singularity.)
 
 ## References
 - efficient integration and code simplification using GSL (helper functions and classes for writing integrals) - [here](https://stackoverflow.com/a/43636411/12955940)

@@ -7,4 +7,4 @@ g-plot
 *.csv
 *.svg
 temp*
-test
+test.ipynb
